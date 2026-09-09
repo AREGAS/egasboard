@@ -1,0 +1,11 @@
+EGasboard-web-v0.1 verification
+
+Python reference tests: [32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m.[0m[32m                                                   [100%][0m
+[32m[32m[1m22 passed[0m[32m in 0.21s[0m[0m
+JavaScript scientific parity: Static JavaScript scientific parity tests passed.
+JavaScript syntax: passed
+Template/example XLSX checks: passed
+Local HTTP smoke test: passed
+GitHub Pages workflow: present
+GoatCounter hooks: present; endpoint blank until account setup
+License: GPL-3.0-or-later

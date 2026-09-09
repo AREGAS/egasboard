@@ -1,0 +1,10 @@
+gas_id,gas_name,cas_rn,hcp_ref_mol_m3_pa,B_K,selected_sander_entry,temp_min_K,temp_max_K,temp_note
+CO,Carbon monoxide,630-08-0,9.7e-6,1300,Sander (2023),278,323,Temperature range recorded for the selected Sander parameterization
+CO2,Carbon dioxide,124-38-9,3.4e-4,2300,Sander (2023),,,No explicit temperature range stored; local two-parameter correction around 298.15 K
+CH4,Methane,74-82-8,1.4e-5,1600,Sander (2023),275,328,Temperature range recorded for the selected Sander parameterization
+NO,Nitric oxide,10102-43-9,1.9e-5,1600,Sander (2023),,,No explicit temperature range stored; local two-parameter correction around 298.15 K
+N2O,Nitrous oxide,10024-97-2,2.4e-4,2600,Sander (2023),,,No explicit temperature range stored; local two-parameter correction around 298.15 K
+H2S,Hydrogen sulfide,7783-06-4,1.0e-3,2100,Sander (2023),,,No explicit temperature range stored; local two-parameter correction around 298.15 K
+C2H6,Ethane,74-84-0,1.9e-5,2400,Sander (2023),275,328,Temperature range recorded for the selected Sander parameterization
+N2,Nitrogen,7727-37-9,6.4e-6,1300,Sander (2023),278.15,323.15,Temperature range recorded for the selected Sander parameterization
+O2,Oxygen,7782-44-7,1.3e-5,1500,Sander (2023),274,328,Temperature range recorded for the selected Sander parameterization

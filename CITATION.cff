@@ -1,0 +1,12 @@
+cff-version: 1.2.0
+message: "If you use (E)Gasboard, please cite the archived software release."
+title: "(E)Gasboard"
+type: software
+authors:
+  - family-names: "Egas"
+    given-names: "Reinier A."
+version: "0.1"
+abstract: >-
+  (E)Gasboard is a tool for gas calculations in closed incubations and microcosms.
+license: GPL-3.0-or-later
+# DOI will be added after the GitHub v0.1 release is archived in Zenodo.

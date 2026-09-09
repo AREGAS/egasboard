@@ -1,0 +1,609 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Gas balance calculations for closed incubations and microcosms.">
+  <title>(E)Gasboard</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+
+<body>
+  <header class="site-header">
+    <div class="shell header-inner">
+      <div class="brand-block">
+        <div class="brand-text">
+          <h1>(E)Gasboard</h1>
+          <p class="version">v0.1</p>
+        </div>
+        <img
+          class="brand-logo"
+          src="./assets/egasboard-logo.png"
+          alt="(E)Gasboard gasboard illustration"
+        >
+      </div>
+
+      <div class="header-actions">
+        <div class="header-note">Gas calculations for closed incubations</div>
+        <div class="theme-control" aria-label="Theme">
+          <button class="theme-button" data-theme-choice="light" title="Light theme">☀ Light</button>
+          <button class="theme-button" data-theme-choice="dark" title="Dark theme">☾ Dark</button>
+          <button class="theme-button active" data-theme-choice="system" title="Use system theme">System</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="shell">
+    <section class="intro">
+      <p>
+        A microcosm or closed incubation is a sealed bottle with known liquid and gas
+        headspace volumes. Because gases partition between both phases, the headspace
+        gas percentage alone does not give the total amount in the bottle.
+      </p>
+      <p>
+        Here, GC peak areas or measured gas percentages are converted to gas amounts
+        using calibration, pressure, temperature, bottle volumes and gas solubility.
+        pH can be included for CO₂ and H₂S speciation. NaCl-equivalent concentration is optional.
+      </p>
+    </section>
+
+    <section class="tool-example-box">
+      <h2>What this tool does</h2>
+      <div class="tool-example-grid">
+        <div>
+          <strong>From GC peak area to bottle amount</strong>
+          <p>
+            Example: convert a CO peak area into headspace %, then calculate the amount
+            present in the headspace, liquid and complete bottle.
+          </p>
+        </div>
+        <div>
+          <strong>From a target concentration to a gas dose</strong>
+          <p>
+            Example: calculate how much O₂ to add to reach 150 µM dissolved O₂ at the
+            entered bottle conditions.
+          </p>
+        </div>
+      </div>
+    </section>
+
+
+    <nav class="tabs" aria-label="Main tools">
+      <button class="tab-button active" data-tab="batch">Excel batch</button>
+      <button class="tab-button" data-tab="single">Single calculation</button>
+      <button class="tab-button" data-tab="dose">Gas dosing</button>
+      <button class="tab-button" data-tab="methods">Calculations</button>
+      <button class="tab-button" data-tab="about">Metrics & citation</button>
+    </nav>
+
+    <section id="tab-batch" class="tab-panel active">
+      <h2>Excel batch analysis</h2>
+      <p class="lead">
+        One row per bottle and time point; gas columns contain GC peak areas.
+        Supported gas headers are recognized automatically, and blank gas cells are ignored.
+      </p>
+<div class="example-block">
+        <h3>Example measurement input</h3>
+        <div class="table-wrap full-example-table">
+          <table>
+            <thead>
+              <tr>
+                <th>experiment_id</th><th>sample_id</th><th>time_h</th>
+                <th>pressure_bar_abs</th><th>temperature_C</th>
+                <th>bottle_volume_mL</th><th>liquid_volume_mL</th>
+                <th>salinity_g_L_NaCl</th><th>pH</th>
+                <th>CO</th><th>CO2</th><th>CH4</th><th>O2</th>
+                <th>H2S</th><th>N2O</th><th>NO</th><th>N2</th><th>C2H6</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>WK3_example</td><td>1_CO</td><td>3.6333</td><td>1.58325</td>
+                <td>23</td><td>120</td><td>39.56</td><td>0</td><td>7.27</td>
+                <td>829.056</td><td>274.38</td><td>2.40</td>
+                <td></td><td></td><td></td><td></td><td></td><td></td>
+              </tr>
+              <tr>
+                <td>WK3_example</td><td>1_CO</td><td>16.1667</td><td>1.54525</td>
+                <td>23</td><td>120</td><td>39.06</td><td>0</td><td>7.27</td>
+                <td>408.20</td><td>455.30</td><td>7.50</td>
+                <td></td><td></td><td></td><td></td><td></td><td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="example-note">
+          Recognized gas columns: CO, CO2, CH4, O2, H2S, N2O, NO, N2 and C2H6.
+        </p>
+      </div>
+
+      <div class="example-block calibration-block">
+        <h3>Example calibration input</h3>
+        <div class="table-wrap full-example-table calibration-example">
+          <table>
+            <thead>
+              <tr><th>gas_id</th><th>calibration_id</th><th>gas_percent</th><th>peak_area</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>CO</td><td>CO_0.935_rep1</td><td>0.93541</td><td>100.6</td></tr>
+              <tr><td>CO</td><td>CO_4.516_rep1</td><td>4.51637</td><td>530.0</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="download-row">
+        <a class="secondary-button" href="./templates/measurement_template.xlsx" download data-track-event="measurement-template-download" data-track-title="Measurement template download">Measurement template</a>
+        <a class="secondary-button" href="./templates/calibration_template.xlsx" download data-track-event="calibration-template-download" data-track-title="Calibration template download">Calibration template</a>
+        <a class="secondary-button subtle" href="./examples/example_measurements.xlsx" download data-track-event="example-measurements-download" data-track-title="Example measurements download">Example measurements</a>
+        <a class="secondary-button subtle" href="./examples/example_calibration.xlsx" download data-track-event="example-calibration-download" data-track-title="Example calibration download">Example calibration</a>
+      </div>
+
+      <div class="upload-card">
+        <div class="file-field">
+          <label for="measurement-file">Measurements</label>
+          <input id="measurement-file" type="file" accept=".xlsx">
+        </div>
+        <div class="file-field">
+          <label for="calibration-file">Calibration</label>
+          <input id="calibration-file" type="file" accept=".xlsx">
+        </div>
+
+        <div class="file-field plot-option-field">
+          <label for="include-excel-plots">Excel output</label>
+          <label class="plot-checkbox">
+            <input id="include-excel-plots" type="checkbox" checked>
+            <span>Include plots in Excel output</span>
+          </label>
+        </div>
+
+        <button id="batch-calculate" class="primary-button">Calculate uploaded data</button>
+      </div>
+
+      <div id="batch-status" class="status hidden"></div>
+
+      <section id="batch-results" class="hidden">
+        <h3>Results</h3>
+        <div class="download-results-row">
+          <button id="download-results" class="primary-button download-results-button">
+            Download Excel results
+          </button>
+        </div>
+
+        <div id="batch-summary" class="metric-grid"></div>
+
+        <div class="calibration-plot-section">
+          <div class="plot-controls">
+            <label>
+              Calibration gas
+              <select id="calibration-plot-gas"></select>
+            </label>
+          </div>
+          <div class="chart-card">
+            <h3 id="calibration-chart-title">Calibration curve</h3>
+            <svg
+              id="calibration-chart"
+              viewBox="0 0 900 430"
+              role="img"
+              aria-label="Calibration curve"
+            ></svg>
+          </div>
+        </div>
+
+        <div class="plot-controls">
+          <label>
+            Experiment
+            <select id="plot-experiment"></select>
+          </label>
+          <label>
+            Sample
+            <select id="plot-sample"></select>
+          </label>
+          <label>
+            Plot
+            <select id="plot-mode">
+              <option value="single">Single gas</option>
+              <option value="all">All gases</option>
+            </select>
+          </label>
+          <label>
+            Metric
+            <select id="plot-metric">
+              <option value="total_bottle_mmol">Total bottle amount (mmol)</option>
+              <option value="headspace_mmol">Headspace amount (mmol)</option>
+              <option value="molecular_dissolved_mmol">Molecular dissolved amount (mmol)</option>
+              <option value="gas_percent">Gas concentration (%)</option>
+              <option value="partial_pressure_bar">Partial pressure (bar)</option>
+            </select>
+          </label>
+          <label id="plot-gas-label">
+            Gas
+            <select id="plot-gas"></select>
+          </label>
+        </div>
+
+        <div class="chart-card">
+          <h3 id="chart-title">Gas amount</h3>
+          <svg id="result-chart" viewBox="0 0 900 430" role="img" aria-label="Gas amount through time"></svg>
+        </div>
+
+        <h3>Calculated data</h3>
+        <div id="results-table" class="table-wrap result-table"></div>
+      </section>
+    </section>
+
+    <section id="tab-single" class="tab-panel">
+      <h2>Single calculation</h2>
+      <div class="form-grid">
+        <label>Gas<select id="single-gas"></select></label>
+        <label>Gas in headspace (%)<input id="single-percent" type="number" value="15" step="0.01"></label>
+        <label>Absolute pressure (bar)<input id="single-pressure" type="number" value="1.5" step="0.01"></label>
+        <label>Temperature (°C)<input id="single-temperature" type="number" value="30" step="0.1"></label>
+        <label>Bottle volume (mL)<input id="single-bottle" type="number" value="120" step="0.1"></label>
+        <label>Liquid volume (mL)<input id="single-liquid" type="number" value="50" step="0.1"></label>
+        <label>NaCl-equivalent (g/L)<input id="single-salinity" type="number" value="0" step="0.1"></label>
+        <label>pH, optional<input id="single-ph" type="number" placeholder="optional" step="0.01"></label>
+      </div>
+      <button id="single-calculate" class="primary-button">Calculate bottle state</button>
+      <div id="single-status" class="status hidden"></div>
+      <div id="single-results" class="metric-grid"></div>
+    </section>
+
+    <section id="tab-dose" class="tab-panel">
+      <h2>Gas dosing</h2>
+      <p class="lead">
+        Calculate the amount of gas required to reach a target dissolved concentration
+        after gas-liquid equilibration. NaCl-equivalent concentration is optional.
+      </p>
+      <div class="form-grid">
+        <label>Gas<select id="dose-gas"></select></label>
+        <label>Target dissolved concentration (µM)<input id="dose-target" type="number" value="150" step="1"></label>
+        <label id="dose-target-basis-label">Target refers to<select id="dose-target-basis"><option value="molecular">Molecular dissolved gas</option><option value="total_pool">Estimated total pool</option></select></label>
+        <label>Bottle volume (mL)<input id="dose-bottle" type="number" value="120" step="0.1"></label>
+        <label>Liquid volume (mL)<input id="dose-liquid" type="number" value="100" step="0.1"></label>
+        <label>Temperature (°C)<input id="dose-temperature" type="number" value="25" step="0.1"></label>
+        <label>NaCl-equivalent (g/L)<input id="dose-salinity" type="number" value="33" step="0.1"></label>
+        <label>Initial gas in headspace (%)<input id="dose-initial-percent" type="number" value="0" step="0.01"></label>
+        <label>Initial pressure (bar abs)<input id="dose-initial-pressure" type="number" value="1.01325" step="0.001"></label>
+        <label>Dosing gas (%)<input id="dose-gas-percent" type="number" value="100" step="0.1"></label>
+        <label>Dosing pressure (bar abs)<input id="dose-pressure" type="number" value="1.01325" step="0.001"></label>
+        <label>pH, optional<input id="dose-ph" type="number" placeholder="optional" step="0.01"></label>
+      </div>
+      <button id="dose-calculate" class="primary-button">Calculate gas dose</button>
+      <div id="dose-status" class="status hidden"></div>
+      <div id="dose-results" class="metric-grid"></div>
+    </section>
+
+    <section id="tab-methods" class="tab-panel prose methods-page">
+      <h2>Calculations</h2>
+      <p>
+        This page describes how a GC response or measured headspace gas percentage is
+        converted into a gas amount for the complete bottle. The same equations are used
+        for single calculations, batch analysis and gas dosing.
+      </p>
+      <p><em>Res ipsa loquitur.</em></p>
+
+      <div class="flow">
+        <span>GC peak area</span><span>→</span><span>gas %</span><span>→</span>
+        <span>partial pressure</span><span>→</span><span>headspace amount</span>
+        <span>→</span><span>dissolved amount</span><span>→</span><span>total bottle amount</span>
+      </div>
+
+      <h3>Parameters and units</h3>
+      <div class="table-wrap methods-table">
+        <table>
+          <thead>
+            <tr><th>Parameter</th><th>Symbol</th><th>Meaning</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>GC peak area</td><td>A</td><td>Instrument response measured for a standard or sample</td></tr>
+            <tr><td>Gas concentration</td><td>x</td><td>Percentage of the headspace made up by the selected gas</td></tr>
+            <tr><td>Gas fraction</td><td>y<sub>i</sub></td><td>Gas concentration expressed as a fraction from 0 to 1</td></tr>
+            <tr><td>Absolute pressure</td><td>P<sub>abs</sub></td><td>Total pressure in the bottle</td></tr>
+            <tr><td>Partial pressure</td><td>p<sub>i</sub></td><td>Pressure contributed by the selected gas</td></tr>
+            <tr><td>Bottle volume</td><td>V<sub>bottle</sub></td><td>Total internal bottle volume</td></tr>
+            <tr><td>Liquid volume</td><td>V<sub>liquid</sub></td><td>Volume occupied by liquid</td></tr>
+            <tr><td>Headspace volume</td><td>V<sub>headspace</sub></td><td>Gas-filled bottle volume</td></tr>
+            <tr><td>Temperature</td><td>T</td><td>Bottle temperature when pressure and gas composition apply</td></tr>
+            <tr><td>Compressibility factor</td><td>Z</td><td>Fixed at 1 in v0.1</td></tr>
+            <tr><td>Gas constant</td><td>R</td><td>8.314462618 J mol<sup>-1</sup> K<sup>-1</sup></td></tr>
+            <tr><td>Henry solubility</td><td>H<sub>s</sub><sup>cp</sup></td><td>Dissolved concentration per gas partial pressure</td></tr>
+            <tr><td>Gas amount</td><td>n</td><td>Amount of gas; results are reported in mmol</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="muted">Internal calculation units are Pa, m³, K and mol.</p>
+
+      <div class="method-step">
+        <h3>1. GC peak area to gas concentration</h3>
+        <p>
+          For a multipoint calibration, every calibration observation is retained,
+          including replicates. A straight line is fitted:
+        </p>
+        <div class="equation math-display"><math display="block"><mi>A</mi><mo>=</mo><mi>m</mi><mi>x</mi><mo>+</mo><mi>b</mi></math></div>
+        <p>The sample gas concentration is then:</p>
+        <div class="equation math-display"><math display="block"><msub><mi>x</mi><mtext>sample</mtext></msub><mo>=</mo><mfrac><mrow><msub><mi>A</mi><mtext>sample</mtext></msub><mo>-</mo><mi>b</mi></mrow><mi>m</mi></mfrac></math></div>
+        <p>
+          The calibration summary reports slope, intercept, R², number of observations
+          and calibration range. Samples outside that range are still calculated but are
+          flagged as extrapolations.
+        </p>
+        <p>
+          For a multipoint calibration, the normal model includes an intercept. If that
+          unconstrained fit would give a negative intercept - and therefore a physically
+          impossible negative predicted peak area at 0% gas - the intercept is constrained
+          to 0 and the slope is refitted by least squares through the origin.
+        </p>
+        <p>
+          With only one non-zero standard, a proportional calibration through zero is
+          used because slope and intercept cannot both be estimated.
+        </p>
+      </div>
+
+      <div class="method-step">
+        <h3>2. Gas concentration to partial pressure</h3>
+        <div class="equation math-display"><math display="block"><msub><mi>y</mi><mi>i</mi></msub><mo>=</mo><mfrac><msub><mi>x</mi><mi>i</mi></msub><mn>100</mn></mfrac></math></div>
+        <div class="equation math-display"><math display="block"><msub><mi>P</mi><mtext>abs</mtext></msub><mtext>[Pa]</mtext><mo>=</mo><msub><mi>P</mi><mtext>abs</mtext></msub><mtext>[bar]</mtext><mo>×</mo><msup><mn>10</mn><mn>5</mn></msup></math></div>
+        <div class="equation math-display"><math display="block"><msub><mi>p</mi><mi>i</mi></msub><mo>=</mo><msub><mi>y</mi><mi>i</mi></msub><msub><mi>P</mi><mtext>abs</mtext></msub></math></div>
+        <p>
+          Pressure is absolute pressure. Water vapour is neglected in v0.1, so the
+          entered pressure is treated as the pressure of the modelled dry gas mixture.
+          Because partial pressure changes with gas fraction and bottle pressure, it is
+          reported per gas and time point in Results rather than as a static metadata value.
+        </p>
+      </div>
+
+      <div class="method-step">
+        <h3>3. Headspace amount</h3>
+        <div class="equation math-display"><math display="block"><msub><mi>V</mi><mtext>headspace</mtext></msub><mo>=</mo><msub><mi>V</mi><mtext>bottle</mtext></msub><mo>-</mo><msub><mi>V</mi><mtext>liquid</mtext></msub></math></div>
+        <div class="equation math-display"><math display="block"><mi>T</mi><mtext>[K]</mtext><mo>=</mo><mi>T</mi><mtext>[°C]</mtext><mo>+</mo><mn>273.15</mn></math></div>
+        <div class="equation math-display"><math display="block"><msub><mi>n</mi><mtext>headspace</mtext></msub><mo>=</mo><mfrac><mrow><msub><mi>p</mi><mi>i</mi></msub><msub><mi>V</mi><mtext>headspace</mtext></msub></mrow><mrow><mi>Z</mi><mi>R</mi><mi>T</mi></mrow></mfrac></math></div>
+        <p>
+          v0.1 uses Z = 1 and is intended for normal incubation pressures.
+        </p>
+      </div>
+
+      <div class="method-step">
+        <h3>4. Temperature-dependent Henry solubility</h3>
+        <p>The Henry convention used here is:</p>
+        <div class="equation math-display"><math display="block"><msubsup><mi>H</mi><mi>s</mi><mtext>cp</mtext></msubsup><mo>=</mo><mfrac><mi>c</mi><mi>p</mi></mfrac></math></div>
+        <p>with units mol m<sup>-3</sup> Pa<sup>-1</sup>.</p>
+        <p>
+          Reference values are stored at 298.15 K and corrected to the bottle temperature
+          using Sander (2023):
+        </p>
+        <div class="equation math-display"><math display="block"><msubsup><mi>H</mi><mi>s</mi><mtext>cp</mtext></msubsup><mo>(</mo><mi>T</mi><mo>)</mo><mo>=</mo><msubsup><mi>H</mi><mi>s</mi><mtext>cp,*</mtext></msubsup><mi>exp</mi><mo>[</mo><mi>B</mi><mo>(</mo><mfrac><mn>1</mn><mi>T</mi></mfrac><mo>-</mo><mfrac><mn>1</mn><mn>298.15</mn></mfrac><mo>)</mo><mo>]</mo></math></div>
+        <p>
+          Stored temperature-range metadata are used for warnings where a supporting
+          range is available. For entries without such a range, the two-parameter
+          correction should be regarded as a local temperature approximation.
+        </p>
+      </div>
+
+      <h3>Gas solubility constants used</h3>
+      <div class="table-wrap methods-table constants-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Gas</th><th>H<sub>s</sub><sup>cp,*</sup> at 298.15 K</th>
+              <th>B (K)</th><th>Stored temperature range</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>CO</td><td>9.70 × 10<sup>-6</sup></td><td>1300</td><td>278-323 K</td></tr>
+            <tr><td>CO₂</td><td>3.40 × 10<sup>-4</sup></td><td>2300</td><td>-</td></tr>
+            <tr><td>CH₄</td><td>1.40 × 10<sup>-5</sup></td><td>1600</td><td>275-328 K</td></tr>
+            <tr><td>NO</td><td>1.90 × 10<sup>-5</sup></td><td>1600</td><td>-</td></tr>
+            <tr><td>N₂O</td><td>2.40 × 10<sup>-4</sup></td><td>2600</td><td>-</td></tr>
+            <tr><td>H₂S</td><td>1.00 × 10<sup>-3</sup></td><td>2100</td><td>-</td></tr>
+            <tr><td>C₂H₆</td><td>1.90 × 10<sup>-5</sup></td><td>2400</td><td>275-328 K</td></tr>
+            <tr><td>N₂</td><td>6.40 × 10<sup>-6</sup></td><td>1300</td><td>278.15-323.15 K</td></tr>
+            <tr><td>O₂</td><td>1.30 × 10<sup>-5</sup></td><td>1500</td><td>274-328 K</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="muted">
+        All Henry solubility values, temperature coefficients and stored ranges are
+        selected from Sander (2023).
+      </p>
+
+      <div class="method-step">
+        <h3>5. Optional salting-out correction</h3>
+        <p>
+          NaCl-equivalent concentration is optional. If it is blank or 0, the pure-water Henry solubility is
+          used. When a value is supplied, the
+          Weisenberger-Schumpe salting-out correction is applied where a gas-specific
+          parameter is available:
+        </p>
+        <div class="equation math-display"><math display="block"><msub><mi>log</mi><mn>10</mn></msub><mo>(</mo><mfrac><msub><mi>c</mi><mtext>water</mtext></msub><msub><mi>c</mi><mtext>salt</mtext></msub></mfrac><mo>)</mo><mo>=</mo><msub><mi>K</mi><mi>s</mi></msub><msub><mi>c</mi><mtext>NaCl</mtext></msub></math></div>
+        <p>
+          This is an NaCl-equivalent approximation, not a full mixed-electrolyte model.
+          CO has no parameter in this model, so CO is left uncorrected and flagged.
+        </p>
+      </div>
+
+      <div class="method-step">
+        <h3>6. Dissolved amount</h3>
+        <div class="equation math-display"><math display="block"><msub><mi>c</mi><mtext>dissolved</mtext></msub><mo>=</mo><msubsup><mi>H</mi><mi>s</mi><mtext>cp</mtext></msubsup><mo>(</mo><mi>T</mi><mo>)</mo><msub><mi>p</mi><mi>i</mi></msub></math></div>
+        <div class="equation math-display"><math display="block"><msub><mi>n</mi><mtext>dissolved</mtext></msub><mo>=</mo><msub><mi>c</mi><mtext>dissolved</mtext></msub><msub><mi>V</mi><mtext>liquid</mtext></msub></math></div>
+        <p>
+          This is the molecular dissolved gas amount. For CO₂ and H₂S, pH-dependent pools
+          are calculated separately.
+        </p>
+      </div>
+
+      <div class="method-step">
+        <h3>7. Optional pH-dependent speciation</h3>
+
+        <h4>CO₂ / carbonate</h4>
+        <div class="equation math-display"><math display="block"><mtext>CO₂*</mtext><mo>⇌</mo><mtext>H⁺</mtext><mo>+</mo><mtext>HCO₃⁻</mtext></math></div>
+        <div class="equation math-display"><math display="block"><mtext>HCO₃⁻</mtext><mo>⇌</mo><mtext>H⁺</mtext><mo>+</mo><mtext>CO₃²⁻</mtext></math></div>
+        <p>At 25 °C, the implemented values are:</p>
+        <ul>
+          <li>pK<sub>a1</sub> = 6.352</li>
+          <li>pK<sub>a2</sub> = 10.329</li>
+        </ul>
+        <p>Both are recalculated for the sample temperature.</p>
+
+        <h4>H₂S / sulfide</h4>
+        <div class="equation math-display"><math display="block"><mtext>H₂S</mtext><mo>⇌</mo><mtext>H⁺</mtext><mo>+</mo><mtext>HS⁻</mtext></math></div>
+        <div class="equation math-display"><math display="block"><mtext>HS⁻</mtext><mo>⇌</mo><mtext>H⁺</mtext><mo>+</mo><mtext>S²⁻</mtext></math></div>
+        <p>At 25 °C, the implemented values are:</p>
+        <ul>
+          <li>pK<sub>a1</sub> ≈ 6.980</li>
+          <li>pK<sub>a2</sub> = 14.00</li>
+        </ul>
+        <p>
+          H₂S, HS⁻ and S²⁻ are included. Around neutral pH the S²⁻ fraction is normally
+          extremely small.
+        </p>
+      </div>
+
+      <div class="method-step">
+        <h3>8. Total bottle amount</h3>
+        <div class="equation math-display"><math display="block"><msub><mi>n</mi><mtext>total</mtext></msub><mo>=</mo><msub><mi>n</mi><mtext>headspace</mtext></msub><mo>+</mo><msub><mi>n</mi><mtext>molecular,dissolved</mtext></msub></math></div>
+        <p>
+          This definition is the same for every gas. Estimated DIC and estimated dissolved total sulfide are separate outputs.
+        </p>
+      </div>
+
+      <div class="method-step co2-box">
+        <h3>CO₂: physical CO₂ and estimated DIC</h3>
+        <p>
+          CO₂ has two useful outputs and they are deliberately kept separate.
+        </p>
+
+        <h4>Physical CO₂</h4>
+        <div class="equation math-display"><math display="block"><msub><mi>n</mi><mtext>CO₂,physical</mtext></msub><mo>=</mo><msub><mi>n</mi><mtext>CO₂,headspace</mtext></msub><mo>+</mo><msub><mi>n</mi><mtext>CO₂*,dissolved</mtext></msub></math></div>
+        <p>
+          This is the same physical total reported as total bottle amount.
+        </p>
+
+        <h4>Estimated dissolved inorganic carbon</h4>
+        <div class="equation math-display"><math display="block"><mi>DIC</mi><mo>=</mo><mtext>CO₂*</mtext><mo>+</mo><mtext>HCO₃⁻</mtext><mo>+</mo><mtext>CO₃²⁻</mtext></math></div>
+        <p>
+          Estimated DIC is only added when pH is available. It does not replace the
+          physical CO₂ result.
+        </p>
+        <p>
+          Detailed carbonate species remain in Extended_data.
+        </p>
+      </div>
+
+
+      <div class="method-step">
+        <h3>Gas dosing</h3>
+        <p>
+          The target dissolved concentration is converted back to the required gas partial pressure.
+          For CO₂ and H₂S, the target can mean molecular dissolved gas or the estimated total dissolved pool.
+          pH is required for DIC or dissolved total sulfide targets.
+        </p>
+        <p>
+          If the target is already reached, gas to add is reported as 0.
+        </p>
+      </div>
+
+      <h3>Current assumptions and scope</h3>
+      <ul>
+        <li>Each measurement is treated as the measured state of the bottle at that time point.</li>
+        <li>Dissolved amounts are equilibrium estimates from Henry's law.</li>
+        <li>Absolute pressure is used.</li>
+        <li>Water vapour is neglected in v0.1. A correction is planned for a later version.</li>
+        <li>v0.1 uses Z = 1.</li>
+        
+        <li>Salting out is optional and uses NaCl-equivalent concentration.</li>
+        <li>Full mixed-electrolyte corrections are not included.</li>
+        <li>Volatile fatty acids are not included.</li>
+        <li>Formal uncertainty propagation is not included.</li>
+      </ul>
+
+      <h3>References</h3>
+      <p>
+        <strong>Henry solubility and temperature dependence</strong><br>
+        Sander, R. (2023). <em>Compilation of Henry's law constants
+        (version 5.0.0) for water as solvent</em>. Atmospheric Chemistry and Physics,
+        23, 10901-12440.
+        <a href="https://doi.org/10.5194/acp-23-10901-2023" target="_blank" rel="noopener">
+          doi:10.5194/acp-23-10901-2023
+        </a>
+      </p>
+      <p>
+        <strong>Optional salting-out correction</strong><br>
+        Weisenberger, S. &amp; Schumpe, A. (1996).
+        <em>Estimation of gas solubilities in salt solutions at temperatures from
+        273 K to 363 K</em>. AIChE Journal, 42, 298-300.
+        <a href="https://doi.org/10.1002/aic.690420130" target="_blank" rel="noopener">
+          doi:10.1002/aic.690420130
+        </a>
+      </p>
+      <p class="muted">
+        Carbonate and sulfide speciation are documented here by the equations and pKa
+        values implemented in the calculation.
+      </p>
+    </section>
+
+    <section id="tab-about" class="tab-panel prose">
+      <h2>Metrics & citation</h2>
+
+      <p>
+        <strong>(E)Gasboard</strong> is an open tool for gas calculations in closed incubations.
+      </p>
+
+      <p>
+        It runs in the browser and includes GC calibration, gas-liquid partitioning,
+        Henry-law calculations, optional salting-out correction, CO₂/H₂S speciation,
+        batch analysis, plots and Excel output.
+      </p>
+
+      <div class="metrics-connect-row">
+        <div class="usage-metric">
+          <span class="metric-label">Tool uses - this browser</span>
+          <strong id="usage-counter">0</strong>
+        </div>
+
+        <div class="usage-metric">
+          <span class="metric-label">Gas calculations - this browser</span>
+          <strong id="gas-calculation-counter">0</strong>
+        </div>
+
+        <a
+          class="connect-card"
+          href="https://bsky.app/profile/raegas.bsky.social"
+          target="_blank"
+          rel="noopener"
+          data-track-event="bluesky-link"
+          data-track-title="Bluesky link"
+        >
+          <span>Love to connect?</span>
+          <strong>Bluesky</strong>
+          <small>@raegas.bsky.social</small>
+        </a>
+      </div>
+
+      <p class="muted">
+        Site analytics count visits and completed actions. Uploaded files and calculation values are not sent.
+      </p>
+
+      <h3>Software output</h3>
+      <p>
+        Open research software with documented calculations and a public web interface.
+      </p>
+
+      <h3>Citation</h3>
+      <p><strong>(E)Gasboard</strong>, Reinier A. Egas, 2026, v0.1. DOI pending.</p>
+
+      <p class="contact-note">
+        Requests, suggestions or ideas for improvements are very welcome - please reach out.
+      </p>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="shell">(E)Gasboard, Reinier A. Egas, 2026, v0.1 | DOI pending</div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>
