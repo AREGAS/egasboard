@@ -17,7 +17,8 @@ import {
 import {
   initializeAnalytics,
   trackAnalyticsEvent,
-  setupTrackedLinks
+  setupTrackedLinks,
+  getGlobalCalculationCount
 } from "./analytics.js";
 
 
@@ -134,6 +135,17 @@ function refreshMetricsDisplay() {
     gasCounter.textContent =
       localStorage.getItem("egasboard_gas_calculation_count") || "0";
   }
+}
+
+async function refreshGlobalCalculationCount() {
+  const counter = byId("global-calculation-counter");
+
+  if (!counter) {
+    return;
+  }
+
+  const total = await getGlobalCalculationCount();
+  counter.textContent = total.toLocaleString();
 }
 
 function showStatus(element, type, html) {
@@ -963,6 +975,7 @@ async function initialize() {
   setupTrackedLinks();
 
   refreshMetricsDisplay();
+  refreshGlobalCalculationCount();
 
   metadata = staticMetadata();
 
