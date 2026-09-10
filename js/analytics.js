@@ -4,6 +4,12 @@ let analyticsReady = false;
 let analyticsStarted = false;
 const pendingEvents = [];
 
+const calculationEvents = [
+  "batch-calculation",
+  "single-calculation",
+  "gas-dosing"
+];
+
 /*
 Only event names and short titles are sent.
 Uploaded files, sample identifiers and calculation values are never sent.
@@ -11,6 +17,14 @@ Uploaded files, sample identifiers and calculation values are never sent.
 function analyticsIsConfigured() {
   return typeof GOATCOUNTER_ENDPOINT === "string" &&
          GOATCOUNTER_ENDPOINT.trim() !== "";
+}
+
+function sendCalculationTotal() {
+  window.goatcounter.count({
+    path: "/calculation-total",
+    title: "Calculation total",
+    no_session: true
+  });
 }
 
 function sendEvent(event) {
@@ -27,6 +41,10 @@ function sendEvent(event) {
     event: true,
     no_session: true
   });
+
+  if (calculationEvents.includes(event.path)) {
+    sendCalculationTotal();
+  }
 }
 
 function flushPendingEvents() {
@@ -39,6 +57,10 @@ function flushPendingEvents() {
       event: true,
       no_session: true
     });
+
+    if (calculationEvents.includes(event.path)) {
+      sendCalculationTotal();
+    }
   }
 }
 
@@ -52,10 +74,12 @@ export function initializeAnalytics() {
   const script = document.createElement("script");
   script.async = true;
   script.src = "https://gc.zgo.at/count.js";
+
   script.setAttribute(
     "data-goatcounter",
     GOATCOUNTER_ENDPOINT.trim()
   );
+
   script.setAttribute(
     "data-goatcounter-settings",
     JSON.stringify({no_onload: true})
@@ -103,43 +127,34 @@ export function setupTrackedLinks() {
 }
 
 export async function getGlobalCalculationCount() {
-  const eventNames = [
-    "batch-calculation",
-    "single-calculation",
-    "gas-dosing"
-  ];
+  try {
+    const path = "/calculation-total";
 
-  let total = 0;
+    const url =
+      "https://raegas.goatcounter.com/counter/" +
+      encodeURIComponent(path) +
+      ".json";
 
-  for (const eventName of eventNames) {
-    try {
-      const url =
-        "https://raegas.goatcounter.com/counter/" +
-        encodeURIComponent(eventName) +
-        ".json";
+    const response = await fetch(url);
 
-      const response = await fetch(url);
-
-      if (!response.ok) {
-        continue;
-      }
-
-      const data = await response.json();
-
-      const count = Number(
-        String(data.count).replaceAll(",", "")
-      );
-
-      if (Number.isFinite(count)) {
-        total += count;
-      }
-    } catch (error) {
-      console.warn(
-        "Could not retrieve GoatCounter count:",
-        eventName
-      );
+    if (!response.ok) {
+      return 0;
     }
+
+    const data = await response.json();
+
+    const count = Number(
+      String(data.count).replaceAll(",", "")
+    );
+
+    if (Number.isFinite(count)) {
+      return count;
+    }
+  } catch (error) {
+    console.warn(
+      "Could not retrieve GoatCounter calculation count"
+    );
   }
 
-  return total;
+  return 0;
 }
