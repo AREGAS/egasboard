@@ -24,7 +24,8 @@ function sendEvent(event) {
   window.goatcounter.count({
     path: event.path,
     title: event.title,
-    event: true
+    event: true,
+    no_session: true
   });
 }
 
@@ -35,7 +36,8 @@ function flushPendingEvents() {
     window.goatcounter.count({
       path: event.path,
       title: event.title,
-      event: true
+      event: true,
+      no_session: true
     });
   }
 }
