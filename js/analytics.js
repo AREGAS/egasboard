@@ -101,3 +101,45 @@ export function setupTrackedLinks() {
     });
   });
 }
+
+export async function getGlobalCalculationCount() {
+  const eventNames = [
+    "batch-calculation",
+    "single-calculation",
+    "gas-dosing"
+  ];
+
+  let total = 0;
+
+  for (const eventName of eventNames) {
+    try {
+      const url =
+        "https://raegas.goatcounter.com/counter/" +
+        encodeURIComponent(eventName) +
+        ".json";
+
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        continue;
+      }
+
+      const data = await response.json();
+
+      const count = Number(
+        String(data.count).replaceAll(",", "")
+      );
+
+      if (Number.isFinite(count)) {
+        total += count;
+      }
+    } catch (error) {
+      console.warn(
+        "Could not retrieve GoatCounter count:",
+        eventName
+      );
+    }
+  }
+
+  return total;
+}
