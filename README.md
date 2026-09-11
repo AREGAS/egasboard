@@ -1,3 +1,13 @@
+<p align="center">
+  <img src="./assets/egasboard-logo.png" alt="(E)Gasboard logo" width="420">
+</p>
+
+<h1 align="center">(E)Gasboard</h1>
+
+<p align="center">
+  Gas calculations for closed incubations and microcosms.
+</p>
+
 # (E)Gasboard v0.1
 
 (E)Gasboard is a browser-based tool for gas calculations in closed incubations and microcosms.
