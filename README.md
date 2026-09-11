@@ -4,7 +4,10 @@
 
 <p align="center">
   <a href="https://doi.org/10.5281/zenodo.22704550">
-    <img src="https://zenodo.org/badge/1362799066.svg" alt="DOI">
+    <img
+      src="https://zenodo.org/badge/DOI/10.5281/zenodo.22704550.svg"
+      alt="DOI"
+    >
   </a>
 </p>
 
