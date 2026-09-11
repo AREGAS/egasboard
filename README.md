@@ -2,6 +2,12 @@
   <img src="./assets/egasboard-logo.png" alt="(E)Gasboard logo" width="420">
 </p>
 
+<p align="center">
+  <a href="https://doi.org/10.5281/zenodo.22704550">
+    <img src="https://zenodo.org/badge/1362799066.svg" alt="DOI">
+  </a>
+</p>
+
 <h1 align="center">(E)Gasboard v0.1 </h1>
 
 <p align="center">
@@ -137,11 +143,7 @@ Detailed equations and assumptions are available in the **Calculations** tab and
 
 ## Citation
 
-Preferred citation after the v0.1 release is archived in Zenodo:
-
-> Egas, R. A. (2026). (E)Gasboard (v0.1) [Computer software]. Zenodo. DOI pending.
-
-The permanent Zenodo DOI will be inserted here after release.
+> Egas, R. A. (2026). *(E)Gasboard* (v0.1) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.22704550
 
 ## License
 
