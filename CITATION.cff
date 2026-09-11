@@ -8,6 +8,9 @@ authors:
     given-names: "Reinier A."
 
 version: "0.1"
+date-released: "2026-09-11"
+
+doi: "10.5281/zenodo.22704550"
 
 abstract: >-
   (E)Gasboard is a browser-based tool for gas calculations in closed
@@ -18,7 +21,3 @@ license: GPL-3.0-or-later
 
 url: "https://egasboard.org"
 repository-code: "https://github.com/AREGAS/egasboard"
-
-# Add after Zenodo archives the v0.1 release:
-# doi: "10.5281/zenodo.XXXXXXX"
-# date-released: "2026-MM-DD"
