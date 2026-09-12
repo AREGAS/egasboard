@@ -11,6 +11,12 @@
   </a>
 </p>
 
+<p align="center">
+  <a href="https://egasboard.org">
+    <strong>Open (E)Gasboard</strong>
+  </a>
+</p>
+
 <h1 align="center">(E)Gasboard v0.1 </h1>
 
 <p align="center">
