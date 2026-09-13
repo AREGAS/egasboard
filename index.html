@@ -485,6 +485,17 @@
               <td>Instrument response measured for a standard or sample</td>
             </tr>
             <tr>
+               <td>Calibration slope</td>
+               <td>m</td>
+               <td>Change in GC peak area per unit gas concentration</td>
+             </tr>
+            <tr>
+             <td>Calibration intercept</td>
+             <td>b</td>
+             <td>Predicted GC peak area at 0% gas</td>
+            </tr>
+            
+            <tr>
               <td>Gas concentration</td>
               <td>x</td>
               <td>Percentage of the headspace made up by the selected gas</td>
@@ -537,7 +548,37 @@
             <tr>
               <td>Henry solubility</td>
               <td>H<sub>s</sub><sup>cp</sup></td>
-              <td>Dissolved concentration per gas partial pressure</td>
+              <td>Dissolved concentration per gas partial pressure at the sample temperature</td>
+            </tr>
+
+            <tr>
+              <td>Reference Henry solubility</td>
+              <td>H<sub>s</sub><sup>cp,*</sup></td>
+              <td>Henry solubility at 298.15 K; * denotes the reference state</td>
+            </tr>
+
+            <tr>
+              <td>Henry temperature coefficient</td>
+              <td>B</td>
+              <td>Temperature-dependence coefficient used to correct Henry solubility; units K</td>
+            </tr>
+
+            <tr>
+              <td>Dissolved concentration</td>
+              <td>c</td>
+              <td>Dissolved concentration of the selected gas</td>
+            </tr>
+
+            <tr>
+              <td>Salting-out coefficient</td>
+              <td>K<sub>s</sub></td>
+              <td>Gas-specific coefficient used in the NaCl-equivalent salting-out correction</td>
+            </tr>
+
+            <tr>
+              <td>NaCl-equivalent concentration</td>
+              <td>c<sub>NaCl</sub></td>
+              <td>NaCl-equivalent salt concentration used for the salting-out correction</td>
             </tr>
             <tr>
               <td>Gas amount</td>
@@ -1134,7 +1175,8 @@
 
   <footer class="site-footer">
     <div class="shell">
-      (E)Gasboard, Reinier A. Egas, 2026 |
+      (E)Gasboard - Open research software for gas calculations |
+      Egas, R. A. (2026) |
       <a
         href="https://doi.org/10.5281/zenodo.22704550"
         target="_blank"
