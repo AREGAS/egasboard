@@ -70,7 +70,7 @@
     </section>
 
     <nav class="tabs" aria-label="Main tools">
-      <button class="tab-button active" data-tab="batch">Excel batch</button>
+      <button class="tab-button active" data-tab="batch">Batch analysis</button>
       <button class="tab-button" data-tab="single">Single calculation</button>
       <button class="tab-button" data-tab="dose">Gas dosing</button>
       <button class="tab-button" data-tab="methods">Calculations</button>
@@ -78,10 +78,11 @@
     </nav>
 
     <section id="tab-batch" class="tab-panel active">
-      <h2>Excel batch analysis</h2>
+      <h2>Batch analysis</h2>
       <p class="lead">
-        One row per bottle and time point; gas columns contain GC peak areas.
-        Supported gas headers are recognized automatically, and blank gas cells are ignored.
+        Upload .xlsx, .csv or .tsv files. One row represents one bottle and time point,
+        and gas columns contain GC peak areas. Supported gas headers are recognized
+        automatically, and blank gas cells are ignored.
       </p>
 
       <div class="example-block">
@@ -194,15 +195,24 @@
       <div class="upload-card">
         <div class="file-field">
           <label for="measurement-file">Measurements</label>
-          <input id="measurement-file" type="file" accept=".xlsx">
+          <input id="measurement-file" type="file" accept=".xlsx,.csv,.tsv">
         </div>
 
         <div class="file-field">
           <label for="calibration-file">Calibration</label>
-          <input id="calibration-file" type="file" accept=".xlsx">
+          <input id="calibration-file" type="file" accept=".xlsx,.csv,.tsv">
         </div>
 
-        <div class="file-field plot-option-field">
+        <div class="file-field">
+          <label for="output-format">Download format</label>
+          <select id="output-format">
+            <option value="xlsx">Excel (.xlsx)</option>
+            <option value="csv">CSV (.csv)</option>
+            <option value="tsv">TSV (.tsv)</option>
+          </select>
+        </div>
+
+        <div id="excel-plot-options" class="file-field plot-option-field">
           <label for="include-excel-plots">Excel output</label>
           <label class="plot-checkbox">
             <input id="include-excel-plots" type="checkbox" checked>
@@ -1052,7 +1062,7 @@
       <p>
         It runs in the browser and includes GC calibration, gas-liquid partitioning,
         Henry-law calculations, optional salting-out correction, CO₂/H₂S speciation,
-        batch analysis, plots and Excel output.
+        batch analysis, plots and Excel/CSV/TSV output.
       </p>
 
         <div class="metrics-connect-row">

@@ -9,8 +9,9 @@ import {
   makeWideResultsTable
 } from "./batch-processing.js";
 import {
-  readFirstWorksheet,
+  readInputTable,
   makeOutputWorkbook,
+  makeDelimitedBlob,
   workbookToBlob,
   downloadBlob
 } from "./excel-io.js";
@@ -326,8 +327,8 @@ async function calculateBatch() {
   showStatus(status, "warning", "Calculating locally in your browser...");
 
   try {
-    const measurementRows = await readFirstWorksheet(measurementFile);
-    const calibrationRows = await readFirstWorksheet(calibrationFile);
+    const measurementRows = await readInputTable(measurementFile);
+    const calibrationRows = await readInputTable(calibrationFile);
 
     const inputQc = summarizeInputValidation(calibrationRows, measurementRows);
     const errors = inputQc.filter(item => item[0] === "ERROR").map(item => item[1]);
@@ -356,8 +357,7 @@ async function calculateBatch() {
       results,
       results_compact: compactResults,
       results_wide: wideResults,
-      include_excel_plots: byId("include-excel-plots").checked,
-      output_filename: "E-Gasboard_results_v0.1.xlsx"
+      output_basename: "E-Gasboard_results_v0.1"
     };
 
     recordUsage();
@@ -920,35 +920,80 @@ function renderResultsTable(rows) {
   byId("results-table").innerHTML = html;
 }
 
-async function downloadBatchExcel() {
+function updateOutputControls() {
+  const formatSelect = byId("output-format");
+  const plotCheckbox = byId("include-excel-plots");
+  const plotField = byId("excel-plot-options");
+  const downloadButton = byId("download-results");
+
+  if (!formatSelect || !plotCheckbox || !downloadButton) {
+    return;
+  }
+
+  const format = formatSelect.value;
+  const isExcel = format === "xlsx";
+
+  plotCheckbox.disabled = !isExcel;
+  if (plotField) {
+    plotField.style.opacity = isExcel ? "1" : "0.55";
+  }
+
+  if (format === "csv") {
+    downloadButton.textContent = "Download CSV results";
+  } else if (format === "tsv") {
+    downloadButton.textContent = "Download TSV results";
+  } else {
+    downloadButton.textContent = "Download Excel results";
+  }
+}
+
+async function downloadBatchResults() {
   if (!batchPayload) return;
 
   const button = byId("download-results");
-  const originalText = button.textContent;
+  const format = byId("output-format").value;
   button.disabled = true;
-  button.textContent = "Building Excel workbook...";
 
   try {
-    const workbook = await makeOutputWorkbook({
-      results: batchPayload.results,
-      compactResults: batchPayload.results_compact,
-      wideResults: batchPayload.results_wide,
-      calibrationRows: batchPayload.calibration_rows,
-      calibrations: batchPayload.calibrations,
-      includePlots: batchPayload.include_excel_plots
-    });
+    if (format === "xlsx") {
+      button.textContent = "Building Excel workbook...";
 
-    const blob = await workbookToBlob(workbook);
-    downloadBlob(blob, batchPayload.output_filename);
-    trackAnalyticsEvent(
-      "excel-results-download",
-      "Excel results download"
-    );
+      const workbook = await makeOutputWorkbook({
+        results: batchPayload.results,
+        compactResults: batchPayload.results_compact,
+        wideResults: batchPayload.results_wide,
+        calibrationRows: batchPayload.calibration_rows,
+        calibrations: batchPayload.calibrations,
+        includePlots: byId("include-excel-plots").checked
+      });
+
+      const blob = await workbookToBlob(workbook);
+      downloadBlob(blob, batchPayload.output_basename + ".xlsx");
+      trackAnalyticsEvent(
+        "excel-results-download",
+        "Excel results download"
+      );
+    } else {
+      const mainResults = batchPayload.results_compact.length
+        ? batchPayload.results_compact
+        : batchPayload.results_wide;
+
+      const delimiter = format === "tsv" ? "\t" : ",";
+      const blob = makeDelimitedBlob(mainResults, delimiter);
+      const extension = format === "tsv" ? ".tsv" : ".csv";
+      const label = format === "tsv" ? "TSV" : "CSV";
+
+      downloadBlob(blob, batchPayload.output_basename + extension);
+      trackAnalyticsEvent(
+        format + "-results-download",
+        label + " results download"
+      );
+    }
   } catch (error) {
     showStatus(byId("batch-status"), "error", error.message);
   } finally {
     button.disabled = false;
-    button.textContent = originalText;
+    updateOutputControls();
   }
 }
 
@@ -987,7 +1032,9 @@ async function initialize() {
   byId("dose-calculate").addEventListener("click", calculateDose);
   byId("dose-gas").addEventListener("change", updateDoseTargetBasis);
   byId("batch-calculate").addEventListener("click", calculateBatch);
-  byId("download-results").addEventListener("click", downloadBatchExcel);
+  byId("download-results").addEventListener("click", downloadBatchResults);
+  byId("output-format").addEventListener("change", updateOutputControls);
+  updateOutputControls();
 
   byId("calibration-plot-gas").addEventListener("change", renderCalibrationPlot);
   byId("plot-experiment").addEventListener("change", refreshSamples);

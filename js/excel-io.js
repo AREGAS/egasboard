@@ -1,8 +1,9 @@
 /*
- * (E)Gasboard v0.1 - browser Excel input/output
+ * (E)Gasboard v0.1 - browser table input/output
  *
- * ExcelJS is loaded in the browser before this ES module. It is used only for
- * file transport and workbook formatting. Scientific calculations stay
+ * ExcelJS is loaded in the browser before this ES module. It is used for
+ * .xlsx transport and workbook formatting. CSV/TSV parsing is handled here
+ * without external libraries. Scientific calculations stay
  * in the calculation modules under /js.
  *
  * Plot sheets contain HIGH-RESOLUTION PNG figures, not duplicated data tables.
@@ -73,6 +74,175 @@ export async function readFirstWorksheet(file) {
   }
 
   return rows;
+}
+
+
+function fileExtension(file) {
+  const name = file && file.name ? String(file.name).toLowerCase() : "";
+  const dot = name.lastIndexOf(".");
+  return dot >= 0 ? name.slice(dot) : "";
+}
+
+function countDelimiterOutsideQuotes(text, delimiter) {
+  let count = 0;
+  let inQuotes = false;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index];
+
+    if (character === '"') {
+      if (inQuotes && text[index + 1] === '"') {
+        index += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (!inQuotes && character === delimiter) {
+      count += 1;
+    }
+  }
+
+  return count;
+}
+
+function detectDelimitedSeparator(text, extension) {
+  if (extension === ".tsv") {
+    return "\t";
+  }
+
+  const firstLine = text
+    .split(/\r?\n/)
+    .find(line => line.trim() !== "") || "";
+
+  const candidates = [",", ";", "\t"];
+  let bestDelimiter = ",";
+  let bestCount = -1;
+
+  for (const delimiter of candidates) {
+    const count = countDelimiterOutsideQuotes(firstLine, delimiter);
+    if (count > bestCount) {
+      bestDelimiter = delimiter;
+      bestCount = count;
+    }
+  }
+
+  return bestDelimiter;
+}
+
+function parseDelimitedText(text, delimiter) {
+  const parsedRows = [];
+  let currentRow = [];
+  let currentField = "";
+  let inQuotes = false;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index];
+
+    if (inQuotes) {
+      if (character === '"') {
+        if (text[index + 1] === '"') {
+          currentField += '"';
+          index += 1;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        currentField += character;
+      }
+      continue;
+    }
+
+    if (character === '"') {
+      inQuotes = true;
+    } else if (character === delimiter) {
+      currentRow.push(currentField);
+      currentField = "";
+    } else if (character === "\n") {
+      currentRow.push(currentField);
+      parsedRows.push(currentRow);
+      currentRow = [];
+      currentField = "";
+    } else if (character === "\r") {
+      if (text[index + 1] !== "\n") {
+        currentRow.push(currentField);
+        parsedRows.push(currentRow);
+        currentRow = [];
+        currentField = "";
+      }
+    } else {
+      currentField += character;
+    }
+  }
+
+  if (currentField !== "" || currentRow.length > 0) {
+    currentRow.push(currentField);
+    parsedRows.push(currentRow);
+  }
+
+  return parsedRows;
+}
+
+async function readDelimitedFile(file) {
+  let text = await file.text();
+  text = text.replace(/^\uFEFF/, "");
+
+  const extension = fileExtension(file);
+  const delimiter = detectDelimitedSeparator(text, extension);
+  const parsedRows = parseDelimitedText(text, delimiter);
+
+  const nonEmptyRows = parsedRows.filter(row =>
+    row.some(value => String(value ?? "").trim() !== "")
+  );
+
+  if (nonEmptyRows.length === 0) {
+    throw new Error("The uploaded text file contains no data.");
+  }
+
+  const headers = nonEmptyRows[0].map(value => String(value ?? "").trim());
+  if (!headers.some(header => header !== "")) {
+    throw new Error("The uploaded text file contains no header row.");
+  }
+
+  const rows = [];
+
+  for (let rowIndex = 1; rowIndex < nonEmptyRows.length; rowIndex += 1) {
+    const sourceRow = nonEmptyRows[rowIndex];
+    const output = {};
+    let hasAnyValue = false;
+
+    headers.forEach((header, columnIndex) => {
+      if (!header) return;
+
+      const rawValue = sourceRow[columnIndex] ?? "";
+      const value = String(rawValue).trim() === "" ? null : rawValue;
+      output[header] = value;
+
+      if (!valueIsMissing(value)) {
+        hasAnyValue = true;
+      }
+    });
+
+    if (hasAnyValue) {
+      rows.push(output);
+    }
+  }
+
+  return rows;
+}
+
+export async function readInputTable(file) {
+  const extension = fileExtension(file);
+
+  if (extension === ".xlsx") {
+    return readFirstWorksheet(file);
+  }
+
+  if (extension === ".csv" || extension === ".tsv") {
+    return readDelimitedFile(file);
+  }
+
+  throw new Error(
+    "Unsupported file type. Use .xlsx, .csv or .tsv files."
+  );
 }
 
 function tableColumns(rows) {
@@ -627,6 +797,61 @@ export async function makeOutputWorkbook({
   writeReferenceSheet(workbook, includePlots);
 
   return workbook;
+}
+
+
+function delimitedCell(value, delimiter) {
+  if (value === null || value === undefined) {
+    return "";
+  }
+
+  let text = String(value);
+
+  if (text.includes('"')) {
+    text = text.replaceAll('"', '""');
+  }
+
+  const needsQuotes =
+    text.includes(delimiter) ||
+    text.includes('"') ||
+    text.includes("\n") ||
+    text.includes("\r");
+
+  return needsQuotes ? `"${text}"` : text;
+}
+
+export function makeDelimitedBlob(rows, delimiter = ",") {
+  if (delimiter !== "," && delimiter !== "\t") {
+    throw new Error("Unsupported output delimiter.");
+  }
+
+  if (!rows || rows.length === 0) {
+    throw new Error("There are no calculated results to export.");
+  }
+
+  const columns = tableColumns(rows);
+  const lines = [];
+
+  lines.push(
+    columns.map(column => delimitedCell(column, delimiter)).join(delimiter)
+  );
+
+  for (const row of rows) {
+    lines.push(
+      columns
+        .map(column => delimitedCell(row[column], delimiter))
+        .join(delimiter)
+    );
+  }
+
+  const mimeType = delimiter === "\t"
+    ? "text/tab-separated-values;charset=utf-8"
+    : "text/csv;charset=utf-8";
+
+  return new Blob(
+    ["\uFEFF" + lines.join("\r\n")],
+    {type: mimeType}
+  );
 }
 
 export async function workbookToBlob(workbook) {
