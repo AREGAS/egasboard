@@ -23,7 +23,7 @@
   Gas calculations for closed incubations and microcosms.
 </p>
 
-The public site is **static**: calculations run in the browser. No Python server is needed and uploaded Excel files stay on the user's computer.
+The public site is **static**: calculations run in the browser. No Python server is needed and uploaded/generated Excel/CSV/TSV files stay on the user's computer.
 
 ## What it does
 
