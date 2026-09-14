@@ -244,10 +244,10 @@ async function calculateSingle() {
     html += metric("Partial pressure", formatNumber(result.partial_pressure_Pa / 100000, 4) + " bar");
 
     if (result.estimated_DIC_mmol !== undefined && result.estimated_DIC_mmol !== null) {
-      html += metric("Estimated DIC", formatNumber(result.estimated_DIC_mmol, 6) + " mmol");
+      html += metric("Estimated dissolved inorganic carbon (DIC)", formatNumber(result.estimated_DIC_mmol, 6) + " mmol");
     }
     if (result.estimated_total_sulfide_mmol !== undefined && result.estimated_total_sulfide_mmol !== null) {
-      html += metric("Estimated total sulfide", formatNumber(result.estimated_total_sulfide_mmol, 6) + " mmol");
+      html += metric("Estimated dissolved total sulfide", formatNumber(result.estimated_total_sulfide_mmol, 6) + " mmol");
     }
 
     byId("single-results").innerHTML = html;
@@ -292,7 +292,7 @@ async function calculateDose() {
     );
 
     const targetLabel = result.target_basis === "total_pool"
-      ? (result.gas_id === "CO2" ? "Target DIC" : "Target total sulfide")
+      ? (result.gas_id === "CO2" ? "Target dissolved inorganic carbon (DIC)" : "Target dissolved total sulfide")
       : "Target molecular dissolved";
 
     byId("dose-results").innerHTML =
@@ -1009,7 +1009,9 @@ function updateDoseTargetBasis() {
 
   const poolOption = select.querySelector('option[value="total_pool"]');
   if (poolOption) {
-    poolOption.textContent = gas === "CO2" ? "Estimated DIC" : "Estimated total sulfide";
+    poolOption.textContent = gas === "CO2"
+      ? "Estimated dissolved inorganic carbon (DIC)"
+      : "Estimated dissolved total sulfide";
   }
 }
 
