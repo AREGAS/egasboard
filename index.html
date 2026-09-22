@@ -47,12 +47,6 @@
         using calibration, pressure, temperature, bottle volumes and gas solubility.
         pH can be included for CO₂ and H₂S speciation. NaCl-equivalent concentration is optional.
       </p>
-      <p>
-      <strong>Explore the full workflow:</strong>
-    download the example measurement/calibration files in Batch analysis,
-    upload both files, and run the calculation to see calibration fitting, QC,
-    gas calculations, interactive plots and downloadable (extended) results including plots.
-  </p>
     </section>
 
     <section class="tool-example-box">
@@ -100,6 +94,7 @@
                 <th>experiment_id</th><th>sample_id</th><th>time_h</th>
                 <th>pressure_bar_abs</th><th>temperature_C</th>
                 <th>bottle_volume_mL</th><th>liquid_volume_mL</th>
+                <th>liquid_sample_mL</th><th>headspace_sample_mL</th>
                 <th>salinity_g_L_NaCl</th><th>pH</th>
                 <th>CO</th><th>CO2</th><th>CH4</th><th>O2</th>
                 <th>H2S</th><th>N2O</th><th>NO</th><th>N2</th><th>C2H6</th>
@@ -108,13 +103,13 @@
             <tbody>
               <tr>
                 <td>WK3_example</td><td>1_CO</td><td>3.6333</td><td>1.58325</td>
-                <td>23</td><td>120</td><td>39.56</td><td>0</td><td>7.27</td>
+                <td>23</td><td>120</td><td>39.56</td><td>0.50</td><td>0.10</td><td>0</td><td>7.27</td>
                 <td>829.056</td><td>274.38</td><td>2.40</td>
                 <td></td><td></td><td></td><td></td><td></td><td></td>
               </tr>
               <tr>
                 <td>WK3_example</td><td>1_CO</td><td>16.1667</td><td>1.54525</td>
-                <td>23</td><td>120</td><td>39.06</td><td>0</td><td>7.27</td>
+                <td>23</td><td>120</td><td>39.06</td><td>1.50</td><td>0.10</td><td>0</td><td>7.27</td>
                 <td>408.20</td><td>455.30</td><td>7.50</td>
                 <td></td><td></td><td></td><td></td><td></td><td></td>
               </tr>
@@ -123,6 +118,9 @@
         </div>
         <p class="example-note">
           Recognized gas columns: CO, CO2, CH4, O2, H2S, N2O, NO, N2 and C2H6.
+          <code>liquid_sample_mL</code> and <code>headspace_sample_mL</code> are optional.
+          When supplied, they describe volumes removed <strong>after</strong> the measurement on that row,
+          so the sampling loss is applied only to subsequent time points. Leave them blank or use 0 when no sample is removed.
         </p>
       </div>
 
@@ -199,6 +197,12 @@
       </div>
 
       <div class="upload-card">
+        <p class="example-note">
+          <strong>Explore the full workflow:</strong> download the example measurement and calibration files above,
+          upload both here, and run the calculation to see calibration fitting, QC, gas calculations,
+          sampling-loss correction, interactive plots and downloadable results.
+        </p>
+
         <div class="file-field">
           <label for="measurement-file">Measurements</label>
           <input id="measurement-file" type="file" accept=".xlsx,.csv,.tsv">
@@ -286,6 +290,7 @@
             Metric
             <select id="plot-metric">
               <option value="total_bottle_mmol">Total bottle amount (mmol)</option>
+              <option value="sampling_corrected_total_mmol">Sampling-corrected total amount (mmol)</option>
               <option value="headspace_mmol">Headspace amount (mmol)</option>
               <option value="molecular_dissolved_mmol">Molecular dissolved amount (mmol)</option>
               <option value="gas_percent">Gas concentration (%)</option>
@@ -535,6 +540,31 @@
               <td>Headspace volume</td>
               <td>V<sub>headspace</sub></td>
               <td>Gas-filled bottle volume</td>
+            </tr>
+            <tr>
+              <td>Liquid sample volume</td>
+              <td>V<sub>sample,liquid</sub></td>
+              <td>Optional liquid volume removed after a time-point measurement</td>
+            </tr>
+            <tr>
+              <td>Headspace sample volume</td>
+              <td>V<sub>sample,gas</sub></td>
+              <td>Optional headspace gas volume removed after a time-point measurement</td>
+            </tr>
+            <tr>
+              <td>Sampled amount</td>
+              <td>n<sub>sample</sub></td>
+              <td>Amount of a gas physically removed in a gas and/or liquid sample</td>
+            </tr>
+            <tr>
+              <td>Cumulative sampled amount</td>
+              <td>N<sub>sample,&lt;i</sub></td>
+              <td>Total amount removed during sampling before the current time point</td>
+            </tr>
+            <tr>
+              <td>Sampling-corrected amount</td>
+              <td>n<sub>corrected</sub></td>
+              <td>Current bottle amount plus material removed during previous sampling events</td>
             </tr>
             <tr>
               <td>Temperature</td>
@@ -988,6 +1018,82 @@
         </p>
       </div>
 
+      <div class="method-step">
+        <h3>9. Sampling-loss correction for time-series experiments</h3>
+
+        <p>
+          Repeated gas and liquid sampling physically removes material from a closed bottle.
+          The measured bottle amount therefore describes what remains at that time point.
+          When optional sampling volumes are supplied, (E)Gasboard additionally reports a
+          sampling-corrected inventory that adds back material removed during <strong>previous</strong> sampling events.
+        </p>
+
+        <p>
+          Sampling volumes entered on row <em>i</em> are assumed to be removed after the measurement on that row.
+          They do not alter the corrected value for row <em>i</em>; they first contribute to the correction at the next time point.
+        </p>
+
+        <div class="equation math-display">
+          <math display="block">
+            <msub><mi>n</mi><mtext>sample,gas,i</mtext></msub>
+            <mo>=</mo>
+            <msub><mi>n</mi><mtext>headspace,i</mtext></msub>
+            <mfrac>
+              <msub><mi>V</mi><mtext>sample,gas,i</mtext></msub>
+              <msub><mi>V</mi><mtext>headspace,i</mtext></msub>
+            </mfrac>
+          </math>
+        </div>
+
+        <div class="equation math-display">
+          <math display="block">
+            <msub><mi>n</mi><mtext>sample,liquid,i</mtext></msub>
+            <mo>=</mo>
+            <msub><mi>n</mi><mtext>molecular,dissolved,i</mtext></msub>
+            <mfrac>
+              <msub><mi>V</mi><mtext>sample,liquid,i</mtext></msub>
+              <msub><mi>V</mi><mtext>liquid,i</mtext></msub>
+            </mfrac>
+          </math>
+        </div>
+
+        <div class="equation math-display">
+          <math display="block">
+            <msub><mi>N</mi><mtext>sample,&lt;i</mtext></msub>
+            <mo>=</mo>
+            <munderover><mo>∑</mo><mrow><mi>j</mi><mo>=</mo><mn>1</mn></mrow><mrow><mi>i</mi><mo>−</mo><mn>1</mn></mrow></munderover>
+            <mo>(</mo>
+            <msub><mi>n</mi><mtext>sample,gas,j</mtext></msub>
+            <mo>+</mo>
+            <msub><mi>n</mi><mtext>sample,liquid,j</mtext></msub>
+            <mo>)</mo>
+          </math>
+        </div>
+
+        <div class="equation math-display">
+          <math display="block">
+            <msub><mi>n</mi><mtext>corrected,i</mtext></msub>
+            <mo>=</mo>
+            <msub><mi>n</mi><mtext>total,bottle,i</mtext></msub>
+            <mo>+</mo>
+            <msub><mi>N</mi><mtext>sample,&lt;i</mtext></msub>
+          </math>
+        </div>
+
+        <p>
+          For CO₂, a second sampling correction is calculated for total inorganic carbon when pH is available.
+          Liquid sampling then removes the estimated DIC pool (CO₂* + HCO₃⁻ + CO₃²⁻), while headspace sampling removes gaseous CO₂.
+          H₂S is handled analogously using the estimated dissolved total sulfide pool.
+        </p>
+
+        <p>
+          The corrected value is a <strong>mass-balance inventory</strong>, not a prediction of the exact concentration
+          that would have occurred in an unsampled bottle. Sampling changes liquid and headspace volumes and can therefore
+          also affect subsequent gas-liquid partitioning. Enter the actual liquid volume present at every time point;
+          (E)Gasboard does not automatically subtract <code>liquid_sample_mL</code> from later rows.
+        </p>
+      </div>
+
       <div class="method-step co2-box">
         <h3>CO₂: physical CO₂ and estimated DIC</h3>
 
@@ -1031,6 +1137,15 @@
         </p>
 
         <p>
+          <strong>Important for CO₂ utilization and carbon-balance experiments:</strong>
+          estimated DIC is strongly dependent on pH because pH determines the distribution
+          between CO₂*, HCO₃⁻ and CO₃²⁻. Even small pH changes can substantially affect the
+          estimated DIC pool. For quantitative CO₂ utilization or carbon-balance analyses,
+          pH should preferably be measured at each time point rather than assumed to remain constant.
+          Sampling-corrected DIC uses the pH entered for each sampling time point.
+        </p>
+
+        <p>
           Detailed carbonate species remain in Extended_data.
         </p>
       </div>
@@ -1053,6 +1168,8 @@
 
       <ul>
         <li>Each measurement is treated as the measured state of the bottle at that time point.</li>
+        <li>Optional liquid/headspace sample volumes are treated as material removed after the measurement on that row and are applied only to subsequent time points.</li>
+        <li>Sampling-corrected values are mass-balance inventories; actual bottle volumes must still be entered for every time point.</li>
         <li>Dissolved amounts are equilibrium estimates from Henry's law.</li>
         <li>Absolute pressure is used.</li>
         <li>Water vapour is neglected in v0.1. A correction is planned for a later version.</li>

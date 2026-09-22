@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.1 - post-release updates
+
+- Added optional `liquid_sample_mL` and `headspace_sample_mL` columns for longitudinal sampling-loss correction.
+- Added cumulative sampled amount and sampling-corrected bottle inventory while preserving the original measured bottle amount.
+- Added pH-dependent sampling-corrected inorganic-carbon output for CO2 and total-sulfide output for H2S.
+- Added sampling-corrected browser and Excel plots when sampling information is present.
+- Expanded input templates, example data, calculation documentation and Excel reference output for the sampling convention.
+- Added a stronger warning that estimated DIC is pH-sensitive in CO2 utilization/carbon-balance experiments.
+- Standardized downloaded result filenames to `EGasboard_results_v0.1.*`.
+- Reframed the README around the public `egasboard.org` tool and source-code transparency/reproducibility rather than self-hosting.
+
 ## v0.1 - static browser architecture
 
 - Ported the scientific calculation framework from the live Python backend to readable browser JavaScript modules.

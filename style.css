@@ -898,3 +898,9 @@ select {
   display: inline;
   white-space: nowrap;
 }
+
+/* Keep the batch-workflow guidance visible across the full upload card. */
+.upload-card > .example-note {
+  grid-column: 1 / -1;
+  margin-top: 0;
+}

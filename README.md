@@ -17,29 +17,77 @@
   </a>
 </p>
 
-<h1 align="center">(E)Gasboard v0.1 </h1>
+<h1 align="center">(E)Gasboard v0.1</h1>
 
 <p align="center">
   Gas calculations for closed incubations and microcosms.
 </p>
 
-The public site is **static**: calculations run in the browser. No Python server is needed and uploaded/generated Excel/CSV/TSV files stay on the user's computer.
+## Use the tool
+
+The intended user interface is the public website:
+
+**https://egasboard.org**
+
+Calculations run locally in the browser. Uploaded measurement/calibration files and calculated results are not sent to an (E)Gasboard server.
+
+This GitHub repository is primarily provided for **transparency, reproducibility, versioning and inspection of the scientific code**. Most users do not need to download, install or host the website themselves.
 
 ## What it does
 
 - converts GC peak areas to gas percentages using gas-specific calibration curves;
 - calculates gas partial pressure from gas fraction and absolute bottle pressure;
 - calculates headspace gas from the gas law;
-- calculates dissolved gas using Henry's law with temperature correction;
+- calculates molecular dissolved gas using Henry's law with temperature correction;
 - optionally applies a NaCl / NaCl-equivalent salting-out correction;
-- optionally estimates pH-dependent CO2 and H2S dissolved speciation;
+- optionally estimates pH-dependent CO2/DIC and H2S/sulfide pools;
 - calculates total bottle gas amount;
+- optionally corrects longitudinal batch data for gas and liquid removed during repeated sampling;
+- keeps the measured bottle inventory and sampling-corrected inventory as separate outputs;
 - calculates gas additions required to reach a target dissolved concentration;
-- processes wide-format Excel batch files;
+- accepts `.xlsx`, `.csv` and `.tsv` batch input;
 - produces interactive calibration and time-series plots in the browser;
-- exports a formatted Excel workbook with Results, Extended_data, plots, calibration data and a calculation Reference sheet.
+- exports formatted Excel results and simpler CSV/TSV results.
 
-## Static architecture
+For CO2 carbon-balance work, estimated DIC is intentionally kept separate from physical CO2. DIC is strongly pH-dependent, so time-resolved pH measurements are recommended when quantitative DIC or sampling-corrected inorganic-carbon balances are required.
+
+## Sampling-loss correction
+
+Batch measurement files can optionally contain:
+
+```text
+liquid_sample_mL
+headspace_sample_mL
+```
+
+The volumes on a row are interpreted as material removed **after the measurement on that row**. They therefore affect only subsequent sampling-corrected time points.
+
+The original `total_bottle_mmol` is never overwritten. When sampling information is supplied, (E)Gasboard additionally reports a cumulative sampling loss and `sampling_corrected_total_mmol`.
+
+For CO2 and H2S, pH-dependent sampling-corrected reactive-pool balances are also calculated when pH is available.
+
+The entered `liquid_volume_mL` must always be the actual liquid volume present at that measurement. (E)Gasboard does not automatically subtract the liquid sample volume from later rows.
+
+## Output
+
+The Excel export is named, for example:
+
+```text
+EGasboard_results_v0.1.xlsx
+```
+
+and contains:
+
+1. `Results` - concise bottle/time-point output;
+2. `Extended_data` - detailed gas-specific calculation output;
+3. `Plots` - optional PNG time-series plots, including sampling-corrected plots when applicable;
+4. `Calibration_data`;
+5. `Calibration_curves` - optional PNG calibration plots;
+6. `Reference` - calculation and output conventions.
+
+CSV/TSV output currently contains the main Results table. Extended CSV/TSV parity is planned as a small follow-up update.
+
+## Scientific architecture
 
 ```text
 browser
@@ -54,101 +102,59 @@ browser
   |     speciation.js
   |     batch-processing.js
   |
-  +-- Excel input/output in the browser
+  +-- browser table input/output
   |     excel-io.js
   |
   +-- interactive SVG plots
         app.js
 ```
 
-There is no FastAPI backend in the public build. The previous Python implementation is retained under `reference-python/` as the reference implementation for parity tests.
+The public site is static; there is no calculation backend. The earlier Python calculation implementation is retained under `reference-python/` as a readable reference implementation and parity target.
 
-## Excel output
+## Source code and reproducibility
 
-The static browser build exports:
+The scientific code is intentionally split into small modules so equations, units and assumptions remain inspectable.
 
-1. `Results`
-2. `Extended_data`
-3. `Plots` - optional PNG plots
-4. `Calibration_data`
-5. `Calibration_curves` - optional PNG plots
-6. `Reference`
+The JavaScript implementation can be checked against numerical fixtures generated from the Python reference implementation with:
 
-Plot sheets contain images only. Source values stay in the data sheets.
+```bash
+npm test
+```
 
-Excel file parsing and workbook generation use ExcelJS in the browser. The current site loads ExcelJS 4.4.0 from jsDelivr. Scientific calculations do not depend on ExcelJS.
+The parity suite covers calibration, bottle calculations, CO2 speciation, salting-out correction, gas dosing and batch processing. Sampling-loss calculations are additionally tested in the batch-processing tests.
 
-## Run locally
-
-Because the site uses JavaScript modules, serve the folder through a small local web server rather than opening `index.html` directly with `file://`.
-
-If Python is available:
+For local inspection/development only, the repository can be served with a simple static server, for example:
 
 ```bash
 python -m http.server 8000
 ```
 
-Then open:
+and opened at `http://localhost:8000`. This is not required to use (E)Gasboard; normal users should use **egasboard.org**.
 
-```text
-http://localhost:8000
-```
+## Core assumptions
 
-This local server is only for development/testing. The public application itself does not require Python hosting.
+- one measurement row represents one closed bottle at one time point;
+- entered pressure is absolute;
+- water vapour is neglected in v0.1;
+- v0.1 uses the ideal gas law with `Z = 1`;
+- Henry constants use the `Hcp = c/p` convention;
+- salting out uses NaCl-equivalent concentration;
+- total bottle amount is headspace + molecular dissolved gas;
+- estimated DIC and estimated dissolved total sulfide are separate outputs;
+- optional sampling volumes are removed after the measurement on their row;
+- sampling-corrected values are mass-balance inventories, not predictions of the exact concentration in an unsampled bottle.
 
-## GitHub Pages deployment
-
-The repository includes `.github/workflows/pages.yml`.
-
-After creating the GitHub repository:
-
-1. push the files to the `main` branch;
-2. open **Settings -> Pages**;
-3. set the source to **GitHub Actions**;
-4. the included workflow deploys the repository as a static website;
-5. subsequent pushes to `main` automatically update the live site.
-
-A custom domain such as `egasboard.org` can then be configured in GitHub Pages and at the domain registrar.
+Detailed equations and assumptions are available in the **Calculations** tab and under `docs/`.
 
 ## Analytics
 
-The public site can use GoatCounter for simple usage statistics.
+The public site uses GoatCounter for simple usage statistics. Uploaded files, sample identifiers and calculation values are not sent to GoatCounter.
 
 Configuration is in:
 
 ```text
 js/analytics-config.js
 ```
-
-Paste the GoatCounter `/count` endpoint into `GOATCOUNTER_ENDPOINT`.
-
-The site tracks page views and successful batch, single, dosing and download actions. Uploaded Excel files, sample identifiers and calculation values are not sent to GoatCounter.
-
-The counters shown in Metrics & citation are stored in the visitor's browser.
-
-## Scientific code
-
-The scientific code is split into small modules with equations, units and comments kept visible.
-
-The JavaScript implementation is tested against numerical fixtures generated from the Python reference implementation:
-
-```bash
-npm test
-```
-
-The parity suite covers calibration, the negative-intercept constraint, single gas states, CO2 speciation, salting-out correction, gas dosing and the example batch dataset.
-
-## Core assumptions
-
-- one measurement row represents one closed bottle at one time point;
-- entered pressure is absolute;
-- water vapour is neglected in v0.1; a correction is planned for a later version;
-- v0.1 uses the ideal gas law with `Z = 1`;
-- Henry constants use the `Hcp = c/p` convention;
-- salting out uses NaCl-equivalent concentration;
-- total bottle amount is headspace + molecular dissolved gas; estimated DIC and estimated dissolved total sulfide are separate.
-
-Detailed equations and assumptions are available in the **Calculations** tab and under `docs/`.
 
 ## Citation
 
@@ -157,4 +163,3 @@ Detailed equations and assumptions are available in the **Calculations** tab and
 ## License
 
 (E)Gasboard is released under GPL-3.0-or-later. See `LICENSE`.
-
