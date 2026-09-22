@@ -569,7 +569,7 @@ function writePlotSheet(ExcelJS, workbook, results) {
   addTitle(
     worksheet,
     "Result plots",
-    "All-gas sample plots generated in the browser. Source numbers are stored once in Results."
+    "All-gas sample plots generated in the browser. Sampling-corrected plots are added when sampling volumes are supplied. Source numbers are stored once in Results."
   );
   worksheet.showGridLines = false;
   worksheet.getColumn(1).width = 14;
@@ -612,6 +612,23 @@ function writePlotSheet(ExcelJS, workbook, results) {
       };
     });
 
+    const correctedSeries = gases
+      .map(gas => {
+        const rows = sampleRows
+          .filter(row =>
+            String(row.gas_id) === gas &&
+            !valueIsMissing(row.sampling_corrected_total_mmol) &&
+            Number.isFinite(Number(row.sampling_corrected_total_mmol))
+          )
+          .sort((a, b) => Number(a.time_h) - Number(b.time_h));
+        return {
+          label: gas,
+          xValues: rows.map(row => Number(row.time_h)),
+          yValues: rows.map(row => Number(row.sampling_corrected_total_mmol))
+        };
+      })
+      .filter(series => series.xValues.length > 0);
+
     const totalPng = pngForLineSeries(
       totalSeries,
       `${experimentId} | ${sampleId} - total bottle amount`,
@@ -628,6 +645,19 @@ function writePlotSheet(ExcelJS, workbook, results) {
       ext: {width: 900, height: 450}
     });
     startRow += 24;
+
+    if (correctedSeries.length > 0) {
+      const correctedPng = pngForLineSeries(
+        correctedSeries,
+        `${experimentId} | ${sampleId} - sampling-corrected total amount`,
+        "Gas amount (mmol)"
+      );
+      addPng(ExcelJS, workbook, worksheet, correctedPng, {
+        tl: {col: 0, row: startRow - 1},
+        ext: {width: 900, height: 450}
+      });
+      startRow += 24;
+    }
 
     addPng(ExcelJS, workbook, worksheet, percentPng, {
       tl: {col: 0, row: startRow - 1},
@@ -677,7 +707,12 @@ function writeReferenceSheet(workbook, includePlots) {
     ["Software version", "v0.1"],
     ["Calculation version", "v0.1"],
     ["Results", "One row per bottle/time point. Total bottle amount is headspace + molecular dissolved gas. CO2 and H2S reactive pools are separate."],
-    ["Extended data", "Detailed gas-specific calculation output."],
+    ["Sampling correction", "Optional liquid_sample_mL and headspace_sample_mL volumes are removed after the measurement on that row. Sampling loss is added back only to subsequent time points."],
+    ["Sampling-corrected total", "Current total bottle amount + cumulative gas and molecular dissolved material removed during previous sampling events."],
+    ["CO2 sampling correction", "When pH is available, an additional estimated inorganic-carbon balance uses gaseous CO2 + dissolved DIC. DIC is pH-sensitive."],
+    ["H2S sampling correction", "When pH is available, an additional sulfide balance uses gaseous H2S + estimated dissolved total sulfide."],
+    ["Volume convention", "Enter the actual liquid volume present at every measurement. The tool does not automatically subtract liquid_sample_mL from later rows."],
+    ["Extended data", "Detailed gas-specific calculation output including sampled and cumulative sampling-loss fields when applicable."],
     ["Calibration", "Linear regression. If the fitted intercept is negative, it is set to zero and the slope is refitted."],
     ["Pressure basis", "Absolute pressure"],
     ["Water vapour", "Neglected in v0.1. A correction is planned for a later version."],

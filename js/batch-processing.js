@@ -108,6 +108,46 @@ export function summarizeInputValidation(calibrationRows, measurementRows) {
     }
   }
 
+  const hasLiquidSampling = measurementColumns.includes("liquid_sample_mL");
+  const hasHeadspaceSampling = measurementColumns.includes("headspace_sample_mL");
+
+  measurementRows.forEach((row, rowIndex) => {
+    const liquidSample = hasLiquidSampling && !valueIsMissing(row.liquid_sample_mL)
+      ? Number(row.liquid_sample_mL)
+      : 0;
+    const headspaceSample = hasHeadspaceSampling && !valueIsMissing(row.headspace_sample_mL)
+      ? Number(row.headspace_sample_mL)
+      : 0;
+
+    const liquidVolume = Number(row.liquid_volume_mL);
+    const bottleVolume = Number(row.bottle_volume_mL);
+    const headspaceVolume = bottleVolume - liquidVolume;
+
+    if (!Number.isFinite(liquidSample) || liquidSample < 0) {
+      checks.push([
+        "ERROR",
+        `Measurement row ${rowIndex + 2}: liquid_sample_mL must be 0 or a positive number.`
+      ]);
+    } else if (Number.isFinite(liquidVolume) && liquidSample > liquidVolume) {
+      checks.push([
+        "ERROR",
+        `Measurement row ${rowIndex + 2}: liquid_sample_mL exceeds the liquid volume.`
+      ]);
+    }
+
+    if (!Number.isFinite(headspaceSample) || headspaceSample < 0) {
+      checks.push([
+        "ERROR",
+        `Measurement row ${rowIndex + 2}: headspace_sample_mL must be 0 or a positive number.`
+      ]);
+    } else if (Number.isFinite(headspaceVolume) && headspaceSample > headspaceVolume) {
+      checks.push([
+        "ERROR",
+        `Measurement row ${rowIndex + 2}: headspace_sample_mL exceeds the headspace volume.`
+      ]);
+    }
+  });
+
   const duplicateColumns = measurementColumns.includes("experiment_id")
     ? ["experiment_id", "sample_id", "time_h"]
     : ["sample_id", "time_h"];
@@ -220,6 +260,12 @@ export function measurementTableToLong(measurementRows) {
         temperature_C: sourceRow.temperature_C,
         bottle_volume_mL: sourceRow.bottle_volume_mL,
         liquid_volume_mL: sourceRow.liquid_volume_mL,
+        liquid_sample_mL: valueIsMissing(sourceRow.liquid_sample_mL)
+          ? 0.0
+          : Number(sourceRow.liquid_sample_mL),
+        headspace_sample_mL: valueIsMissing(sourceRow.headspace_sample_mL)
+          ? 0.0
+          : Number(sourceRow.headspace_sample_mL),
         salinity_g_L_NaCl: valueIsMissing(sourceRow.salinity_g_L_NaCl)
           ? 0.0
           : sourceRow.salinity_g_L_NaCl,
@@ -255,6 +301,8 @@ export function processMeasurementTable(measurementRows, calibrations, compressi
       temperature_C: row.temperature_C,
       bottle_volume_mL: row.bottle_volume_mL,
       liquid_volume_mL: row.liquid_volume_mL,
+      liquid_sample_mL: row.liquid_sample_mL,
+      headspace_sample_mL: row.headspace_sample_mL,
       salinity_g_L_NaCl: row.salinity_g_L_NaCl,
       pH: row.pH
     };
@@ -281,6 +329,28 @@ export function processMeasurementTable(measurementRows, calibrations, compressi
         ? 0.0
         : Number(row.salinity_g_L_NaCl);
       const ph = valueIsMissing(row.pH) ? null : Number(row.pH);
+      const liquidSampleMl = valueIsMissing(row.liquid_sample_mL)
+        ? 0.0
+        : Number(row.liquid_sample_mL);
+      const headspaceSampleMl = valueIsMissing(row.headspace_sample_mL)
+        ? 0.0
+        : Number(row.headspace_sample_mL);
+      const liquidVolumeMl = Number(row.liquid_volume_mL);
+      const bottleVolumeMl = Number(row.bottle_volume_mL);
+      const headspaceVolumeMl = bottleVolumeMl - liquidVolumeMl;
+
+      if (!Number.isFinite(liquidSampleMl) || liquidSampleMl < 0) {
+        throw new Error("liquid_sample_mL must be 0 or a positive number.");
+      }
+      if (liquidSampleMl > liquidVolumeMl) {
+        throw new Error("liquid_sample_mL cannot exceed liquid_volume_mL.");
+      }
+      if (!Number.isFinite(headspaceSampleMl) || headspaceSampleMl < 0) {
+        throw new Error("headspace_sample_mL must be 0 or a positive number.");
+      }
+      if (headspaceSampleMl > headspaceVolumeMl) {
+        throw new Error("headspace_sample_mL cannot exceed the current headspace volume.");
+      }
 
       if ((gasId === "CO2" || gasId === "H2S") && ph === null) {
         qcFlags.push("MISSING_PH");
@@ -394,6 +464,240 @@ export function processMeasurementTable(measurementRows, calibrations, compressi
   return results;
 }
 
+function addQcFlag(row, flag) {
+  const existing = String(row.QC_status || "")
+    .split("|")
+    .map(value => value.trim())
+    .filter(value => value && value !== "OK");
+
+  if (!existing.includes(flag)) existing.push(flag);
+  row.QC_status = existing.length ? existing.join(" | ") : "OK";
+}
+
+function normalizedExperimentId(value) {
+  if (valueIsMissing(value) || String(value).trim() === "") {
+    return "Experiment 1";
+  }
+  return String(value).trim();
+}
+
+export function applySamplingCorrections(results, measurementRows) {
+  if (!results.length) return results;
+
+  const sourceRows = measurementRows.map((row, rowIndex) => ({
+    excel_row: rowIndex + 2,
+    experiment_id: normalizedExperimentId(row.experiment_id),
+    sample_id: row.sample_id,
+    time_h: row.time_h,
+    liquid_sample_mL: valueIsMissing(row.liquid_sample_mL)
+      ? 0.0
+      : Number(row.liquid_sample_mL),
+    headspace_sample_mL: valueIsMissing(row.headspace_sample_mL)
+      ? 0.0
+      : Number(row.headspace_sample_mL)
+  }));
+
+  const resultByKey = new Map();
+  for (const row of results) {
+    const key = [
+      normalizedExperimentId(row.experiment_id),
+      String(row.sample_id),
+      Number(row.excel_row),
+      String(row.gas_id).trim().toUpperCase()
+    ].join("\u0001");
+    resultByKey.set(key, row);
+  }
+
+  const sampleGroups = new Map();
+  for (const row of sourceRows) {
+    const key = [row.experiment_id, String(row.sample_id)].join("\u0001");
+    if (!sampleGroups.has(key)) sampleGroups.set(key, []);
+    sampleGroups.get(key).push(row);
+  }
+
+  for (const rows of sampleGroups.values()) {
+    rows.sort((a, b) => {
+      const timeDifference = Number(a.time_h) - Number(b.time_h);
+      if (timeDifference !== 0) return timeDifference;
+      return Number(a.excel_row) - Number(b.excel_row);
+    });
+
+    const experimentId = rows[0].experiment_id;
+    const sampleId = String(rows[0].sample_id);
+    const resultRowsForSample = results.filter(row =>
+      normalizedExperimentId(row.experiment_id) === experimentId &&
+      String(row.sample_id) === sampleId
+    );
+    const gases = uniqueInOrder(
+      resultRowsForSample.map(row => String(row.gas_id).trim().toUpperCase())
+    );
+
+    const groupHasSampling = rows.some(row =>
+      Number(row.liquid_sample_mL) > 0 || Number(row.headspace_sample_mL) > 0
+    );
+
+    if (!groupHasSampling) {
+      continue;
+    }
+
+    for (const gasId of gases) {
+      let cumulativeMolecularSampled = 0.0;
+      let molecularCorrectionComplete = true;
+      let cumulativeReactivePoolSampled = 0.0;
+      let reactivePoolCorrectionComplete = true;
+
+      for (const sourceRow of rows) {
+        const lookupKey = [
+          experimentId,
+          sampleId,
+          Number(sourceRow.excel_row),
+          gasId
+        ].join("\u0001");
+        const row = resultByKey.get(lookupKey);
+
+        const liquidSampleMl = Number(sourceRow.liquid_sample_mL) || 0.0;
+        const headspaceSampleMl = Number(sourceRow.headspace_sample_mL) || 0.0;
+        const samplingOccurs = liquidSampleMl > 0 || headspaceSampleMl > 0;
+
+        if (!row || row.processing_error) {
+          if (samplingOccurs) {
+            molecularCorrectionComplete = false;
+            if (gasId === "CO2" || gasId === "H2S") {
+              reactivePoolCorrectionComplete = false;
+            }
+          }
+          continue;
+        }
+
+        row.sampled_headspace_mmol = null;
+        row.sampled_liquid_molecular_mmol = null;
+        row.sampled_total_molecular_mmol = null;
+        row.cumulative_sampled_molecular_mmol = molecularCorrectionComplete
+          ? cumulativeMolecularSampled
+          : null;
+        row.sampling_corrected_total_mmol = molecularCorrectionComplete
+          ? Number(row.total_bottle_mmol) + cumulativeMolecularSampled
+          : null;
+
+        if (!molecularCorrectionComplete) {
+          addQcFlag(row, "SAMPLING_CORRECTION_INCOMPLETE");
+        }
+
+        const liquidVolumeMl = Number(row.liquid_volume_mL);
+        const headspaceVolumeMl = Number(row.bottle_volume_mL) - liquidVolumeMl;
+
+        let sampledHeadspaceMmol = 0.0;
+        if (headspaceSampleMl > 0) {
+          sampledHeadspaceMmol =
+            Number(row.headspace_mmol) * headspaceSampleMl / headspaceVolumeMl;
+        }
+
+        let sampledLiquidMolecularMmol = 0.0;
+        if (liquidSampleMl > 0) {
+          sampledLiquidMolecularMmol =
+            Number(row.molecular_dissolved_mmol) * liquidSampleMl / liquidVolumeMl;
+        }
+
+        const sampledTotalMolecularMmol =
+          sampledHeadspaceMmol + sampledLiquidMolecularMmol;
+
+        row.sampled_headspace_mmol = sampledHeadspaceMmol;
+        row.sampled_liquid_molecular_mmol = sampledLiquidMolecularMmol;
+        row.sampled_total_molecular_mmol = sampledTotalMolecularMmol;
+
+        if (gasId === "CO2") {
+          const dicAvailable = !valueIsMissing(row.estimated_DIC_mmol);
+
+          row.estimated_total_inorganic_C_bottle_mmol = dicAvailable
+            ? Number(row.headspace_mmol) + Number(row.estimated_DIC_mmol)
+            : null;
+          row.sampled_DIC_mmol = null;
+          row.sampled_total_inorganic_C_mmol = null;
+          row.cumulative_sampled_inorganic_C_mmol =
+            reactivePoolCorrectionComplete && dicAvailable
+              ? cumulativeReactivePoolSampled
+              : null;
+          row.estimated_sampling_corrected_total_inorganic_C_mmol =
+            reactivePoolCorrectionComplete && dicAvailable
+              ? row.estimated_total_inorganic_C_bottle_mmol + cumulativeReactivePoolSampled
+              : null;
+
+          if (!reactivePoolCorrectionComplete) {
+            addQcFlag(row, "DIC_SAMPLING_CORRECTION_INCOMPLETE");
+          }
+
+          if (liquidSampleMl > 0 && !dicAvailable) {
+            reactivePoolCorrectionComplete = false;
+            addQcFlag(row, "DIC_SAMPLING_CORRECTION_INCOMPLETE");
+          } else {
+            const sampledDicMmol = dicAvailable
+              ? Number(row.estimated_DIC_mmol) * liquidSampleMl / liquidVolumeMl
+              : 0.0;
+            const sampledTotalInorganicCMmol = sampledHeadspaceMmol + sampledDicMmol;
+
+            if (dicAvailable) {
+              row.sampled_DIC_mmol = sampledDicMmol;
+              row.sampled_total_inorganic_C_mmol = sampledTotalInorganicCMmol;
+            }
+
+            if (reactivePoolCorrectionComplete) {
+              cumulativeReactivePoolSampled += sampledTotalInorganicCMmol;
+            }
+          }
+        }
+
+        if (gasId === "H2S") {
+          const totalSulfideAvailable = !valueIsMissing(row.estimated_total_sulfide_mmol);
+
+          row.estimated_total_sulfide_bottle_mmol = totalSulfideAvailable
+            ? Number(row.headspace_mmol) + Number(row.estimated_total_sulfide_mmol)
+            : null;
+          row.sampled_dissolved_total_sulfide_mmol = null;
+          row.sampled_total_sulfide_mmol = null;
+          row.cumulative_sampled_total_sulfide_mmol =
+            reactivePoolCorrectionComplete && totalSulfideAvailable
+              ? cumulativeReactivePoolSampled
+              : null;
+          row.estimated_sampling_corrected_total_sulfide_mmol =
+            reactivePoolCorrectionComplete && totalSulfideAvailable
+              ? row.estimated_total_sulfide_bottle_mmol + cumulativeReactivePoolSampled
+              : null;
+
+          if (!reactivePoolCorrectionComplete) {
+            addQcFlag(row, "TOTAL_SULFIDE_SAMPLING_CORRECTION_INCOMPLETE");
+          }
+
+          if (liquidSampleMl > 0 && !totalSulfideAvailable) {
+            reactivePoolCorrectionComplete = false;
+            addQcFlag(row, "TOTAL_SULFIDE_SAMPLING_CORRECTION_INCOMPLETE");
+          } else {
+            const sampledDissolvedTotalSulfideMmol = totalSulfideAvailable
+              ? Number(row.estimated_total_sulfide_mmol) * liquidSampleMl / liquidVolumeMl
+              : 0.0;
+            const sampledTotalSulfideMmol =
+              sampledHeadspaceMmol + sampledDissolvedTotalSulfideMmol;
+
+            if (totalSulfideAvailable) {
+              row.sampled_dissolved_total_sulfide_mmol = sampledDissolvedTotalSulfideMmol;
+              row.sampled_total_sulfide_mmol = sampledTotalSulfideMmol;
+            }
+
+            if (reactivePoolCorrectionComplete) {
+              cumulativeReactivePoolSampled += sampledTotalSulfideMmol;
+            }
+          }
+        }
+
+        if (molecularCorrectionComplete) {
+          cumulativeMolecularSampled += sampledTotalMolecularMmol;
+        }
+      }
+    }
+  }
+
+  return results;
+}
+
 function sourceRowsByExcelRow(results) {
   const sorted = [...results].sort((a, b) => Number(a.excel_row) - Number(b.excel_row));
   const map = new Map();
@@ -416,6 +720,8 @@ export function makeWideResultsTable(results) {
     temperature_C: row.temperature_C,
     bottle_volume_mL: row.bottle_volume_mL,
     liquid_volume_mL: row.liquid_volume_mL,
+    liquid_sample_mL: row.liquid_sample_mL,
+    headspace_sample_mL: row.headspace_sample_mL,
     salinity_g_L_NaCl: row.salinity_g_L_NaCl,
     pH: row.pH
   }));
@@ -424,10 +730,19 @@ export function makeWideResultsTable(results) {
   const metrics = [
     "peak_area", "gas_percent", "total_bottle_mmol", "headspace_mmol",
     "molecular_dissolved_mmol", "reactive_dissolved_mmol", "partial_pressure_Pa",
-    "estimated_DIC_mmol", "estimated_total_sulfide_mmol", "CO2_star_percent",
-    "HCO3_percent", "CO3_percent", "H2S_percent", "HS_percent", "S2_percent",
-    "speciation_pKa1", "speciation_pKa2", "calibration_extrapolated",
-    "QC_status", "warnings", "processing_error"
+    "estimated_DIC_mmol", "estimated_total_sulfide_mmol",
+    "sampled_headspace_mmol", "sampled_liquid_molecular_mmol",
+    "sampled_total_molecular_mmol", "cumulative_sampled_molecular_mmol",
+    "sampling_corrected_total_mmol",
+    "estimated_total_inorganic_C_bottle_mmol", "sampled_DIC_mmol",
+    "sampled_total_inorganic_C_mmol", "cumulative_sampled_inorganic_C_mmol",
+    "estimated_sampling_corrected_total_inorganic_C_mmol",
+    "estimated_total_sulfide_bottle_mmol", "sampled_dissolved_total_sulfide_mmol",
+    "sampled_total_sulfide_mmol", "cumulative_sampled_total_sulfide_mmol",
+    "estimated_sampling_corrected_total_sulfide_mmol",
+    "CO2_star_percent", "HCO3_percent", "CO3_percent", "H2S_percent",
+    "HS_percent", "S2_percent", "speciation_pKa1", "speciation_pKa2",
+    "calibration_extrapolated", "QC_status", "warnings", "processing_error"
   ];
 
   for (const gasId of gasOrder) {
@@ -461,6 +776,8 @@ export function makeCompactResultsTable(results) {
     temperature_C: row.temperature_C,
     bottle_volume_mL: row.bottle_volume_mL,
     liquid_volume_mL: row.liquid_volume_mL,
+    liquid_sample_mL: row.liquid_sample_mL,
+    headspace_sample_mL: row.headspace_sample_mL,
     salinity_g_L_NaCl: row.salinity_g_L_NaCl,
     pH: row.pH
   }));
@@ -479,6 +796,12 @@ export function makeCompactResultsTable(results) {
       outputRow[`${gasId}_total_mmol`] = row.total_bottle_mmol ?? null;
       outputRow[`${gasId}_headspace_mmol`] = row.headspace_mmol ?? null;
       outputRow[`${gasId}_liquid_mmol`] = row.molecular_dissolved_mmol ?? null;
+      if (!valueIsMissing(row.sampling_corrected_total_mmol)) {
+        outputRow[`${gasId}_sampling_corrected_total_mmol`] =
+          row.sampling_corrected_total_mmol;
+        outputRow[`${gasId}_cumulative_sampled_mmol`] =
+          row.cumulative_sampled_molecular_mmol ?? null;
+      }
       outputRow[`${gasId}_partial_pressure_bar`] = valueIsMissing(row.partial_pressure_Pa)
         ? null
         : Number(row.partial_pressure_Pa) / 100000.0;
@@ -487,11 +810,27 @@ export function makeCompactResultsTable(results) {
         if (!valueIsMissing(row.estimated_DIC_mmol)) {
           outputRow.CO2_estimated_DIC_mmol = row.estimated_DIC_mmol;
         }
+        if (!valueIsMissing(row.estimated_total_inorganic_C_bottle_mmol)) {
+          outputRow.CO2_estimated_total_inorganic_C_bottle_mmol =
+            row.estimated_total_inorganic_C_bottle_mmol;
+        }
+        if (!valueIsMissing(row.estimated_sampling_corrected_total_inorganic_C_mmol)) {
+          outputRow.CO2_estimated_sampling_corrected_total_inorganic_C_mmol =
+            row.estimated_sampling_corrected_total_inorganic_C_mmol;
+        }
       }
 
       if (gasId === "H2S") {
         if (!valueIsMissing(row.estimated_total_sulfide_mmol)) {
           outputRow.H2S_estimated_total_sulfide_mmol = row.estimated_total_sulfide_mmol;
+        }
+        if (!valueIsMissing(row.estimated_total_sulfide_bottle_mmol)) {
+          outputRow.H2S_estimated_total_sulfide_bottle_mmol =
+            row.estimated_total_sulfide_bottle_mmol;
+        }
+        if (!valueIsMissing(row.estimated_sampling_corrected_total_sulfide_mmol)) {
+          outputRow.H2S_estimated_sampling_corrected_total_sulfide_mmol =
+            row.estimated_sampling_corrected_total_sulfide_mmol;
         }
         for (const metric of ["H2S_percent", "HS_percent", "S2_percent"]) {
           if (!valueIsMissing(row[metric])) outputRow[`H2S_${metric}`] = row[metric];

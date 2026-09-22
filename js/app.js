@@ -5,6 +5,7 @@ import {
   fitCalibrationsFromTable,
   makeCalibrationFitTable,
   processMeasurementTable,
+  applySamplingCorrections,
   makeCompactResultsTable,
   makeWideResultsTable
 } from "./batch-processing.js";
@@ -338,7 +339,8 @@ async function calculateBatch() {
     }
 
     const fit = fitCalibrationsFromTable(calibrationRows);
-    const results = processMeasurementTable(measurementRows, fit.calibrations, 1.0);
+    let results = processMeasurementTable(measurementRows, fit.calibrations, 1.0);
+    results = applySamplingCorrections(results, measurementRows);
     const compactResults = makeCompactResultsTable(results);
     const wideResults = makeWideResultsTable(results);
 
@@ -357,7 +359,7 @@ async function calculateBatch() {
       results,
       results_compact: compactResults,
       results_wide: wideResults,
-      output_basename: "E-Gasboard_results_v0.1"
+      output_basename: "EGasboard_results_v0.1"
     };
 
     recordUsage();
@@ -558,6 +560,26 @@ function drawCalibrationChart(svg, xValues, measuredValues, fittedValues) {
 
 function populatePlotSelectors() {
   const rows = batchPayload.results.filter(row => !row.processing_error);
+
+  const samplingOption = byId("plot-metric").querySelector(
+    'option[value="sampling_corrected_total_mmol"]'
+  );
+  const hasSamplingCorrectedResults = rows.some(row =>
+    row.sampling_corrected_total_mmol !== null &&
+    row.sampling_corrected_total_mmol !== undefined &&
+    row.sampling_corrected_total_mmol !== "" &&
+    Number.isFinite(Number(row.sampling_corrected_total_mmol))
+  );
+
+  if (samplingOption) {
+    samplingOption.disabled = !hasSamplingCorrectedResults;
+  }
+
+  if (!hasSamplingCorrectedResults &&
+      byId("plot-metric").value === "sampling_corrected_total_mmol") {
+    byId("plot-metric").value = "total_bottle_mmol";
+  }
+
   const experiments = [...new Set(rows.map(row => String(row.experiment_id)))];
   populateSelect(byId("plot-experiment"), experiments);
   refreshSamples();
@@ -597,6 +619,7 @@ function selectedMetricDefinition() {
 
   const definitions = {
     total_bottle_mmol: {label: "Total bottle amount", axis: "Gas amount (mmol)"},
+    sampling_corrected_total_mmol: {label: "Sampling-corrected total amount", axis: "Gas amount (mmol)"},
     headspace_mmol: {label: "Headspace amount", axis: "Gas amount (mmol)"},
     molecular_dissolved_mmol: {label: "Molecular dissolved amount", axis: "Gas amount (mmol)"},
     gas_percent: {label: "Gas concentration", axis: "Gas concentration (%)"},
@@ -608,8 +631,20 @@ function selectedMetricDefinition() {
 
 function metricValue(row, metric) {
   if (metric === "partial_pressure_bar") {
+    if (row.partial_pressure_Pa === null ||
+        row.partial_pressure_Pa === undefined ||
+        row.partial_pressure_Pa === "") {
+      return NaN;
+    }
     return Number(row.partial_pressure_Pa) / 100000.0;
   }
+
+  if (row[metric] === null ||
+      row[metric] === undefined ||
+      row[metric] === "") {
+    return NaN;
+  }
+
   return Number(row[metric]);
 }
 
@@ -633,14 +668,19 @@ function renderSelectedPlot() {
     const gases = [...new Set(sampleRows.map(row => String(row.gas_id)))];
 
     const series = gases.map(gas => {
-      const gasRows = sampleRows
+      const points = sampleRows
         .filter(row => String(row.gas_id) === gas)
-        .sort((a, b) => Number(a.time_h) - Number(b.time_h));
+        .sort((a, b) => Number(a.time_h) - Number(b.time_h))
+        .map(row => ({
+          x: Number(row.time_h),
+          y: metricValue(row, metric)
+        }))
+        .filter(point => Number.isFinite(point.x) && Number.isFinite(point.y));
 
       return {
         label: gas,
-        xValues: gasRows.map(row => Number(row.time_h)),
-        yValues: gasRows.map(row => metricValue(row, metric))
+        xValues: points.map(point => point.x),
+        yValues: points.map(point => point.y)
       };
     });
 
@@ -655,17 +695,22 @@ function renderSelectedPlot() {
     );
   } else {
     const gas = byId("plot-gas").value;
-    const rows = sampleRows
+    const points = sampleRows
       .filter(row => String(row.gas_id) === gas)
-      .sort((a, b) => Number(a.time_h) - Number(b.time_h));
+      .sort((a, b) => Number(a.time_h) - Number(b.time_h))
+      .map(row => ({
+        x: Number(row.time_h),
+        y: metricValue(row, metric)
+      }))
+      .filter(point => Number.isFinite(point.x) && Number.isFinite(point.y));
 
     byId("chart-title").textContent =
       `${gas} ${metricDefinition.label.toLowerCase()} - ${sample}`;
 
     drawLineChart(
       byId("result-chart"),
-      rows.map(row => Number(row.time_h)),
-      rows.map(row => metricValue(row, metric)),
+      points.map(point => point.x),
+      points.map(point => point.y),
       "Time (h)",
       metricDefinition.axis
     );
