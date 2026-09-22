@@ -1,5 +1,6 @@
 import pandas as pd
 
+from batch_processing import apply_sampling_corrections
 from batch_processing import fit_calibrations_from_table
 from batch_processing import make_absolute_gas_comparison_table
 from batch_processing import make_compact_results_table
@@ -381,3 +382,87 @@ def test_compact_results_include_plot_source_values():
 
     assert compact.loc[0, "CO_gas_percent"] == 10.0
     assert compact.loc[0, "CO_partial_pressure_bar"] == 0.15
+
+
+def test_sampling_correction_is_applied_to_later_time_points_only():
+    calibration_table = pd.DataFrame(
+        {
+            "gas_id": ["CO", "CO"],
+            "calibration_id": ["CO_0", "CO_10"],
+            "gas_percent": [0.0, 10.0],
+            "peak_area": [0.0, 1000.0],
+        }
+    )
+
+    measurement_table = pd.DataFrame(
+        {
+            "experiment_id": ["Sampling_test", "Sampling_test"],
+            "sample_id": ["Bottle_01", "Bottle_01"],
+            "time_h": [0.0, 1.0],
+            "pressure_bar_abs": [1.0, 1.0],
+            "temperature_C": [25.0, 25.0],
+            "bottle_volume_mL": [120.0, 120.0],
+            "liquid_volume_mL": [50.0, 49.0],
+            "liquid_sample_mL": [1.0, 0.0],
+            "headspace_sample_mL": [0.1, 0.0],
+            "CO": [500.0, 500.0],
+        }
+    )
+
+    calibrations, _ = fit_calibrations_from_table(calibration_table)
+    results = process_measurement_table(measurement_table, calibrations)
+    corrected = apply_sampling_corrections(results, measurement_table)
+
+    first = corrected.iloc[0]
+    second = corrected.iloc[1]
+    expected_sampled = (
+        first["headspace_mmol"] * 0.1 / 70.0
+        + first["molecular_dissolved_mmol"] * 1.0 / 50.0
+    )
+
+    assert abs(first["cumulative_sampled_molecular_mmol"] - 0.0) < 1e-12
+    assert abs(first["sampling_corrected_total_mmol"] - first["total_bottle_mmol"]) < 1e-12
+    assert abs(first["sampled_total_molecular_mmol"] - expected_sampled) < 1e-12
+    assert abs(second["cumulative_sampled_molecular_mmol"] - expected_sampled) < 1e-12
+    assert abs(
+        second["sampling_corrected_total_mmol"]
+        - (second["total_bottle_mmol"] + expected_sampled)
+    ) < 1e-12
+
+
+def test_co2_sampling_correction_keeps_molecular_and_dic_balances_separate():
+    calibration_table = pd.DataFrame(
+        {
+            "gas_id": ["CO2", "CO2"],
+            "calibration_id": ["CO2_0", "CO2_10"],
+            "gas_percent": [0.0, 10.0],
+            "peak_area": [0.0, 1000.0],
+        }
+    )
+
+    measurement_table = pd.DataFrame(
+        {
+            "sample_id": ["Bottle_01", "Bottle_01"],
+            "time_h": [0.0, 1.0],
+            "pressure_bar_abs": [1.0, 1.0],
+            "temperature_C": [25.0, 25.0],
+            "bottle_volume_mL": [120.0, 120.0],
+            "liquid_volume_mL": [50.0, 49.0],
+            "liquid_sample_mL": [1.0, 0.0],
+            "headspace_sample_mL": [0.1, 0.0],
+            "pH": [7.0, 7.0],
+            "CO2": [500.0, 500.0],
+        }
+    )
+
+    calibrations, _ = fit_calibrations_from_table(calibration_table)
+    results = process_measurement_table(measurement_table, calibrations)
+    corrected = apply_sampling_corrections(results, measurement_table)
+
+    first = corrected.iloc[0]
+    second = corrected.iloc[1]
+
+    assert first["estimated_total_inorganic_C_bottle_mmol"] > first["total_bottle_mmol"]
+    assert first["sampled_DIC_mmol"] > first["sampled_liquid_molecular_mmol"]
+    assert second["estimated_sampling_corrected_total_inorganic_C_mmol"] > 0
+
