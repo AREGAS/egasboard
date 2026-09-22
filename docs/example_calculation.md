@@ -32,3 +32,9 @@ At a later measurement with 8.0% CO and 1.35 bar absolute pressure, the developm
 \]
 
 This is reported neutrally as a **decrease of approximately 0.330 mmol**.
+
+## Repeated-sampling interpretation
+
+If gas or liquid was removed after the first measurement, the raw difference between the two bottle inventories also contains that physical sampling loss. Add `headspace_sample_mL` and/or `liquid_sample_mL` to the measurement file to retain the measured bottle amount while additionally calculating a sampling-corrected inventory.
+
+For example, a sample volume entered on the first row is removed after that first measurement and is therefore added back only when interpreting later time points.

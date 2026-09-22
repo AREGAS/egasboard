@@ -10,6 +10,15 @@ These assumptions define the v0.1 calculation.
 - Bottle volume and liquid volume are treated as known values; headspace volume is their difference.
 - Dissolved amounts are equilibrium estimates from Henry's law.
 
+## Repeated sampling
+
+- `liquid_sample_mL` and `headspace_sample_mL` are optional and default to 0.
+- Sampling volumes on a row are interpreted as material removed **after** the measurement on that row.
+- The current row therefore remains the pre-sampling bottle state; the loss contributes only to subsequent corrected time points.
+- `liquid_volume_mL` must contain the actual liquid volume at every measurement. The tool does not automatically subtract previous liquid samples.
+- Sampling-corrected amounts are mass-balance inventories, not predictions of the exact concentration in an otherwise identical unsampled bottle.
+- If material is removed at a time point where the relevant gas was not measured, the later sampling correction for that gas is incomplete and should not be interpreted as a full balance.
+
 ## Gas phase
 
 - Water vapour is neglected in v0.1. A correction is planned for a later version.
@@ -21,7 +30,13 @@ These assumptions define the v0.1 calculation.
 - Henry solubilities are for water and are taken from the fixed parameter table selected from Sander (2023).
 - Henry solubility is corrected for bottle temperature.
 - Salting out is optional and uses NaCl-equivalent concentration. If omitted, pure-water Henry solubility is used.
-- CO₂ and H₂S can include pH-dependent dissolved species when pH is supplied.
+- CO2 and H2S can include pH-dependent dissolved species when pH is supplied.
+
+## CO2 interpretation
+
+Physical CO2 and estimated DIC are kept separate. `total_bottle_mmol` is always the physical molecular total.
+
+Estimated DIC is strongly pH-dependent. In quantitative CO2 utilization or carbon-balance experiments, pH should preferably be measured at each time point. Sampling-corrected inorganic carbon uses the pH entered for each sampling event.
 
 ## Calibration
 
@@ -35,11 +50,3 @@ These assumptions define the v0.1 calculation.
 - volatile fatty-acid speciation;
 - formal propagation of analytical uncertainty;
 - automatic mechanistic or biological interpretation.
-
-
-## CO₂ interpretation
-
-Physical CO₂ and estimated DIC are kept separate. `total_bottle_mmol` is always the physical total. In a short-term buffered
-experiment with stable pH, physical CO₂ is the direct comparison with a manual
-gas balance. When pH changes substantially, estimated DIC becomes more
-important for interpretation.

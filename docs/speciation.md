@@ -25,6 +25,8 @@ Both pKa values are recalculated for the bottle temperature of each sample.
 
 The total dissolved inorganic-carbon pool is the sum of CO₂*, HCO₃⁻ and CO₃²⁻. (E)Gasboard reports the fraction of each species as well as the total dissolved amount.
 
+**Important for CO₂ utilization and carbon-balance experiments:** estimated DIC is strongly dependent on pH. Even small pH changes can materially change the inferred HCO₃⁻/CO₃²⁻ pool. For quantitative DIC balances, including sampling-corrected inorganic-carbon balances, pH should therefore preferably be measured at each time point.
+
 ## Hydrogen sulfide / sulfide
 
 The neutral dissolved form is H₂S. It also dissociates in two steps:

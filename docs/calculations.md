@@ -10,7 +10,7 @@ The calculation route is:
 
 **GC peak area -> gas concentration (%) -> partial pressure -> headspace amount -> molecular dissolved amount -> total bottle amount**
 
-For CO₂ and H₂S, dissolved acid-base species can additionally be included when pH is supplied.
+For CO₂ and H₂S, dissolved acid-base species can additionally be included when pH is supplied. Longitudinal batch data can optionally include gas and liquid sample volumes so that material physically removed during earlier sampling events is tracked separately.
 
 ---
 
@@ -26,6 +26,11 @@ For CO₂ and H₂S, dissolved acid-base species can additionally be included wh
 | Bottle volume | V_bottle | Internal volume of the complete bottle |
 | Liquid volume | V_liquid | Volume occupied by the liquid |
 | Headspace volume | V_headspace | Gas-filled volume above the liquid |
+| Liquid sample volume | V_sample,liquid | Optional liquid volume removed after a measurement |
+| Headspace sample volume | V_sample,gas | Optional headspace gas volume removed after a measurement |
+| Sampled amount | n_sample | Amount physically removed in a gas and/or liquid sample |
+| Cumulative sampled amount | N_sample,<i | Total amount removed before the current time point |
+| Sampling-corrected amount | n_corrected | Current bottle amount plus cumulative previous sampling loss |
 | Bottle temperature | T | Temperature of the bottle when pressure and gas composition are measured |
 | Compressibility factor | Z | Fixed at 1 in v0.1 |
 | Gas constant | R | 8.314462618 J mol⁻¹ K⁻¹ |
@@ -227,23 +232,80 @@ n_{total}=n_{headspace}+n_{molecular,dissolved}
 
 For CO2 and H2S, estimated DIC or estimated dissolved total sulfide is reported separately.
 
-## Main assumptions
+## Step 9 - Optional sampling-loss correction for time-series experiments
 
-- Calibration and sample injections are assumed to be pressure-normalized before injection.
-- Dissolved amounts are equilibrium estimates from Henry's law.
-- Water vapour is neglected in v0.1. A correction is planned for a later version.
-- v0.1 uses the ideal gas law with Z = 1.
+Repeated headspace or liquid sampling physically removes material from a closed bottle. When sampling volumes are supplied, (E)Gasboard therefore keeps two quantities separate:
 
-## References
+1. the amount currently measured in the bottle; and
+2. a sampling-corrected mass-balance inventory.
 
-**Henry solubility, temperature dependence and stored temperature ranges**  
-Sander, R. (2023). *Compilation of Henry's law constants (version 5.0.0) for water as solvent*. Atmospheric Chemistry and Physics, 23, 10901-12440.  
-https://doi.org/10.5194/acp-23-10901-2023
+Sampling volumes entered on row *i* are assumed to be removed **after** the measurement on row *i*. They therefore first contribute to the correction at the next time point.
 
-**Optional salting-out correction**  
-Weisenberger, S. & Schumpe, A. (1996). *Estimation of gas solubilities in salt solutions at temperatures from 273 K to 363 K*. AIChE Journal, 42, 298-300.  
-https://doi.org/10.1002/aic.690420130
+For the gas sample:
 
+\[
+n_{sample,gas,i}
+=
+n_{headspace,i}
+\frac{V_{sample,gas,i}}{V_{headspace,i}}
+\]
+
+For the liquid sample, using the molecular dissolved gas pool:
+
+\[
+n_{sample,liquid,i}
+=
+n_{molecular,dissolved,i}
+\frac{V_{sample,liquid,i}}{V_{liquid,i}}
+\]
+
+The amount removed before time point *i* is:
+
+\[
+N_{sample,<i}
+=
+\sum_{j<i}
+\left(n_{sample,gas,j}+n_{sample,liquid,j}\right)
+\]
+
+and the sampling-corrected molecular inventory is:
+
+\[
+n_{corrected,i}
+=
+n_{total,bottle,i}+N_{sample,<i}
+\]
+
+The entered liquid volume is **not** automatically changed by the sampling field. `liquid_volume_mL` must describe the actual liquid volume present at every measurement.
+
+The correction is a mass-balance inventory. It does not predict the exact concentration that would have existed in an unsampled bottle, because sampling also changes the headspace/liquid-volume ratio and can therefore affect later gas-liquid partitioning.
+
+### CO2 / inorganic carbon sampling
+
+For CO2, the molecular correction above remains available. When pH is available, a second carbon-balance quantity is calculated:
+
+\[
+n_{TIC,i}=n_{CO2,headspace,i}+n_{DIC,i}
+\]
+
+Liquid sampling removes the estimated DIC concentration present at that time point:
+
+\[
+n_{sample,DIC,i}
+=
+n_{DIC,i}
+\frac{V_{sample,liquid,i}}{V_{liquid,i}}
+\]
+
+while a headspace sample removes molecular CO2. The cumulative previous losses are added to the current headspace-CO2 + DIC inventory.
+
+**pH is critical for this quantity.** DIC depends strongly on the CO2*/HCO3-/CO3^2- distribution. Even small pH changes can substantially change estimated DIC. For quantitative CO2 utilization or carbon-balance experiments, pH should preferably be measured at each time point rather than assumed constant.
+
+### H2S / total sulfide sampling
+
+H2S is treated analogously. The molecular H2S correction uses dissolved molecular H2S. When pH is available, the reactive-pool correction uses gaseous H2S plus estimated dissolved total sulfide (H2S + HS- + S2-).
+
+If a required gas measurement or pH value is missing at a sampling event, later reactive-pool corrections that depend on that event are reported as incomplete rather than silently treating the removed amount as zero.
 
 ## CO₂: physical CO₂ versus estimated DIC
 
@@ -279,3 +341,20 @@ using the implemented temperature-dependent pKa values.
 This does not replace the physical CO₂ result. It is an additional
 carbonate-system quantity. The distinction matters especially when pH changes,
 because carbonate speciation can shift independently of molecular CO2.
+
+## Main assumptions
+
+- Calibration and sample injections are assumed to be pressure-normalized before injection.
+- Dissolved amounts are equilibrium estimates from Henry's law.
+- Water vapour is neglected in v0.1. A correction is planned for a later version.
+- v0.1 uses the ideal gas law with Z = 1.
+
+## References
+
+**Henry solubility, temperature dependence and stored temperature ranges**  
+Sander, R. (2023). *Compilation of Henry's law constants (version 5.0.0) for water as solvent*. Atmospheric Chemistry and Physics, 23, 10901-12440.  
+https://doi.org/10.5194/acp-23-10901-2023
+
+**Optional salting-out correction**  
+Weisenberger, S. & Schumpe, A. (1996). *Estimation of gas solubilities in salt solutions at temperatures from 273 K to 363 K*. AIChE Journal, 42, 298-300.  
+https://doi.org/10.1002/aic.690420130
