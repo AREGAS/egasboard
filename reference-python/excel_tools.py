@@ -284,11 +284,8 @@ def _write_results_plots_sheet(writer, compact_results):
 
     gases = []
     for column_name in columns:
-        if column_name.endswith("_total_mmol"):
-            gas_id = column_name[:-len("_total_mmol")]
-            # Avoid CO2 physical/DIC extras.
-            if gas_id.endswith("_physical_CO2") or gas_id.endswith("_estimated_DIC"):
-                continue
+        if column_name.endswith("_gas_percent"):
+            gas_id = column_name[:-len("_gas_percent")]
             if gas_id not in gases:
                 gases.append(gas_id)
 
@@ -388,6 +385,88 @@ def _write_results_plots_sheet(writer, compact_results):
             })
             total_chart.set_size({"width": 780, "height": 380})
             worksheet.insert_chart(chart_row, 0, total_chart)
+            chart_row += 21
+
+        # Sampling-corrected total amount chart, when the optional
+        # sampling columns were supplied for this sample.
+        corrected_chart = workbook.add_chart({"type": "line"})
+        added_series = 0
+
+        for gas_id in gases:
+            corrected_col_name = gas_id + "_sampling_corrected_total_mmol"
+            if corrected_col_name not in column_index:
+                continue
+            if not sample_rows[corrected_col_name].notna().any():
+                continue
+
+            corrected_col = column_index[corrected_col_name]
+            corrected_chart.add_series(
+                {
+                    "name": gas_id,
+                    "categories": [
+                        data_sheet_name,
+                        first_excel_row,
+                        time_col,
+                        last_excel_row,
+                        time_col,
+                    ],
+                    "values": [
+                        data_sheet_name,
+                        first_excel_row,
+                        corrected_col,
+                        last_excel_row,
+                        corrected_col,
+                    ],
+                    "line": {"width": 2},
+                    "marker": {"type": "circle", "size": 4},
+                }
+            )
+            added_series += 1
+
+        if added_series:
+            corrected_chart.set_title(
+                {
+                    "name": (
+                        f"{experiment_id} | {sample_id} - sampling-corrected total amount"
+                    )
+                }
+            )
+            corrected_chart.set_x_axis({
+                "name": "Time (h)",
+                "line": {"color": "#34463B", "width": 1.5},
+                "major_tick_mark": "outside",
+                "major_gridlines": {"visible": False},
+                "num_font": {"color": "#34463B", "size": 9},
+                "name_font": {"color": "#24352A", "bold": True, "size": 10},
+            })
+            corrected_chart.set_y_axis(
+                {
+                    "name": "Gas amount (mmol)",
+                    "min": 0,
+                    "line": {"color": "#34463B", "width": 1.5},
+                    "major_tick_mark": "outside",
+                    "major_gridlines": {
+                        "visible": True,
+                        "line": {"color": "#DCE8E0", "width": 0.75},
+                    },
+                    "num_font": {"color": "#34463B", "size": 9},
+                    "name_font": {"color": "#24352A", "bold": True, "size": 10},
+                }
+            )
+            corrected_chart.set_chartarea({
+                "fill": {"color": "#FFFFFF"},
+                "border": {"color": "#C9D8CE", "width": 1},
+            })
+            corrected_chart.set_plotarea({
+                "fill": {"color": "#FFFFFF"},
+                "border": {"color": "#E1EAE4", "width": 1},
+            })
+            corrected_chart.set_legend({
+                "position": "bottom",
+                "font": {"color": "#34463B", "size": 9},
+            })
+            corrected_chart.set_size({"width": 780, "height": 380})
+            worksheet.insert_chart(chart_row, 0, corrected_chart)
             chart_row += 21
 
         # Headspace gas concentration chart.
@@ -505,6 +584,11 @@ def make_output_excel(
                 "Software version",
                 "Calculation version",
                 "Normal Results layout",
+                "Sampling correction",
+                "Sampling-corrected total",
+                "CO2 sampling correction",
+                "H2S sampling correction",
+                "Volume convention",
                 "Extended data",
                 "Calibration intercept rule",
                 "Pressure basis",
@@ -518,8 +602,13 @@ def make_output_excel(
             "value": [
                 software_version,
                 calculation_method_version,
-                "one row per bottle/time point; physical total, headspace and molecular dissolved amount per gas; CO2 also reports estimated DIC; H2S can report estimated dissolved total sulfide",
-                "full gas-specific calculation output in Extended_data",
+                "one row per bottle/time point; physical total, headspace and molecular dissolved amount per gas; optional sampling-corrected totals remain separate; CO2 also reports estimated DIC; H2S can report estimated dissolved total sulfide",
+                "optional liquid_sample_mL and headspace_sample_mL volumes are removed after the measurement on that row and affect only subsequent corrected time points",
+                "current total bottle amount plus cumulative gas and molecular dissolved material removed during previous sampling events",
+                "when pH is available, an additional inorganic-carbon balance uses gaseous CO2 plus dissolved DIC; DIC is pH-sensitive",
+                "when pH is available, an additional sulfide balance uses gaseous H2S plus estimated dissolved total sulfide",
+                "enter the actual liquid volume at every measurement; liquid_sample_mL is not automatically subtracted from later rows",
+                "full gas-specific calculation output in Extended_data, including sampled and cumulative sampling-loss fields when applicable",
                 "linear regression; if fitted intercept is negative, intercept is set to zero and slope is refitted",
                 "absolute pressure",
                 "neglected in v0.1; correction planned for a later version",

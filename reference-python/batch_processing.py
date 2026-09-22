@@ -45,6 +45,8 @@ OPTIONAL_MEASUREMENT_COLUMNS = [
     "experiment_id",
     "salinity_g_L_NaCl",
     "pH",
+    "liquid_sample_mL",
+    "headspace_sample_mL",
 ]
 
 CALIBRATION_COLUMNS = [
@@ -113,6 +115,12 @@ def measurement_table_to_long(measurement_table):
     if "pH" not in wide_table.columns:
         wide_table["pH"] = None
 
+    if "liquid_sample_mL" not in wide_table.columns:
+        wide_table["liquid_sample_mL"] = 0.0
+
+    if "headspace_sample_mL" not in wide_table.columns:
+        wide_table["headspace_sample_mL"] = 0.0
+
     gas_columns = get_measurement_gas_columns(wide_table)
 
     if len(gas_columns) == 0:
@@ -143,6 +151,8 @@ def measurement_table_to_long(measurement_table):
                     "temperature_C": row["temperature_C"],
                     "bottle_volume_mL": row["bottle_volume_mL"],
                     "liquid_volume_mL": row["liquid_volume_mL"],
+                    "liquid_sample_mL": row["liquid_sample_mL"],
+                    "headspace_sample_mL": row["headspace_sample_mL"],
                     "salinity_g_L_NaCl": row["salinity_g_L_NaCl"],
                     "pH": row["pH"],
                 }
@@ -210,6 +220,46 @@ def summarize_input_validation(calibration_table, measurement_table):
                     + ", ".join(gases_without_calibration),
                 )
             )
+
+    for row_index, row in measurement_table.iterrows():
+        liquid_sample = row.get("liquid_sample_mL", 0.0)
+        headspace_sample = row.get("headspace_sample_mL", 0.0)
+
+        if value_is_missing(liquid_sample):
+            liquid_sample = 0.0
+        if value_is_missing(headspace_sample):
+            headspace_sample = 0.0
+
+        try:
+            liquid_sample = float(liquid_sample)
+            liquid_volume = float(row["liquid_volume_mL"])
+            bottle_volume = float(row["bottle_volume_mL"])
+            headspace_sample = float(headspace_sample)
+            headspace_volume = bottle_volume - liquid_volume
+        except (TypeError, ValueError, KeyError):
+            continue
+
+        if liquid_sample < 0:
+            checks.append((
+                "ERROR",
+                f"Measurement row {row_index + 2}: liquid_sample_mL must be 0 or a positive number.",
+            ))
+        elif liquid_sample > liquid_volume:
+            checks.append((
+                "ERROR",
+                f"Measurement row {row_index + 2}: liquid_sample_mL exceeds the liquid volume.",
+            ))
+
+        if headspace_sample < 0:
+            checks.append((
+                "ERROR",
+                f"Measurement row {row_index + 2}: headspace_sample_mL must be 0 or a positive number.",
+            ))
+        elif headspace_sample > headspace_volume:
+            checks.append((
+                "ERROR",
+                f"Measurement row {row_index + 2}: headspace_sample_mL exceeds the headspace volume.",
+            ))
 
     duplicate_columns = ["sample_id", "time_h"]
     if "experiment_id" in measurement_table.columns:
@@ -353,6 +403,8 @@ def process_measurement_table(
             "temperature_C": row["temperature_C"],
             "bottle_volume_mL": row["bottle_volume_mL"],
             "liquid_volume_mL": row["liquid_volume_mL"],
+            "liquid_sample_mL": row["liquid_sample_mL"],
+            "headspace_sample_mL": row["headspace_sample_mL"],
             "salinity_g_L_NaCl": row["salinity_g_L_NaCl"],
             "pH": row["pH"],
         }
@@ -406,6 +458,31 @@ def process_measurement_table(
                 ph = None
             else:
                 ph = float(row["pH"])
+
+            if value_is_missing(row["liquid_sample_mL"]):
+                liquid_sample_ml = 0.0
+            else:
+                liquid_sample_ml = float(row["liquid_sample_mL"])
+
+            if value_is_missing(row["headspace_sample_mL"]):
+                headspace_sample_ml = 0.0
+            else:
+                headspace_sample_ml = float(row["headspace_sample_mL"])
+
+            liquid_volume_ml = float(row["liquid_volume_mL"])
+            bottle_volume_ml = float(row["bottle_volume_mL"])
+            headspace_volume_ml = bottle_volume_ml - liquid_volume_ml
+
+            if liquid_sample_ml < 0:
+                raise ValueError("liquid_sample_mL must be 0 or a positive number.")
+            if liquid_sample_ml > liquid_volume_ml:
+                raise ValueError("liquid_sample_mL cannot exceed liquid_volume_mL.")
+            if headspace_sample_ml < 0:
+                raise ValueError("headspace_sample_mL must be 0 or a positive number.")
+            if headspace_sample_ml > headspace_volume_ml:
+                raise ValueError(
+                    "headspace_sample_mL cannot exceed the current headspace volume."
+                )
 
             if gas_id in ["CO2", "H2S"] and ph is None:
                 qc_flags.append("MISSING_PH")
@@ -599,6 +676,8 @@ def process_measurement_table(
         "temperature_C",
         "bottle_volume_mL",
         "liquid_volume_mL",
+        "liquid_sample_mL",
+        "headspace_sample_mL",
         "salinity_g_L_NaCl",
         "pH",
         "partial_pressure_Pa",
@@ -641,6 +720,295 @@ def process_measurement_table(
 
 
 
+def _add_qc_flag(row, flag):
+    """Append one QC flag while keeping the existing order."""
+
+    current = str(row.get("QC_status", "")).strip()
+    existing = []
+
+    if current not in ["", "OK", "nan"]:
+        for value in current.split("|"):
+            value = value.strip()
+            if value and value not in existing:
+                existing.append(value)
+
+    if flag not in existing:
+        existing.append(flag)
+
+    return " | ".join(existing) if existing else "OK"
+
+
+def _normalized_experiment_id(value):
+    if value_is_missing(value) or str(value).strip() == "":
+        return "Experiment 1"
+    return str(value).strip()
+
+
+def apply_sampling_corrections(results_table, measurement_table):
+    """Add optional longitudinal sampling-loss corrections.
+
+    Sample volumes on measurement row i are interpreted as being removed after
+    the measurement on row i. They therefore affect only later time points.
+    The original measured bottle amount is never overwritten.
+    """
+
+    if len(results_table) == 0:
+        return results_table.copy()
+
+    corrected = results_table.copy()
+    source = measurement_table.copy()
+
+    if "experiment_id" not in source.columns:
+        source["experiment_id"] = "Experiment 1"
+    if "liquid_sample_mL" not in source.columns:
+        source["liquid_sample_mL"] = 0.0
+    if "headspace_sample_mL" not in source.columns:
+        source["headspace_sample_mL"] = 0.0
+
+    source["_excel_row"] = source.index + 2
+    source["_experiment_normalized"] = source["experiment_id"].apply(
+        _normalized_experiment_id
+    )
+
+    # Create the output columns only when needed. This keeps old datasets
+    # readable while making the correction explicit when sampling was supplied.
+    sampling_columns = [
+        "sampled_headspace_mmol",
+        "sampled_liquid_molecular_mmol",
+        "sampled_total_molecular_mmol",
+        "cumulative_sampled_molecular_mmol",
+        "sampling_corrected_total_mmol",
+        "estimated_total_inorganic_C_bottle_mmol",
+        "sampled_DIC_mmol",
+        "sampled_total_inorganic_C_mmol",
+        "cumulative_sampled_inorganic_C_mmol",
+        "estimated_sampling_corrected_total_inorganic_C_mmol",
+        "estimated_total_sulfide_bottle_mmol",
+        "sampled_dissolved_total_sulfide_mmol",
+        "sampled_total_sulfide_mmol",
+        "cumulative_sampled_total_sulfide_mmol",
+        "estimated_sampling_corrected_total_sulfide_mmol",
+    ]
+    for column in sampling_columns:
+        if column not in corrected.columns:
+            corrected[column] = None
+
+    group_keys = source[["_experiment_normalized", "sample_id"]].drop_duplicates()
+
+    for _, group_key in group_keys.iterrows():
+        experiment_id = group_key["_experiment_normalized"]
+        sample_id = group_key["sample_id"]
+
+        source_rows = source[
+            (source["_experiment_normalized"] == experiment_id)
+            & (source["sample_id"].astype(str) == str(sample_id))
+        ].copy()
+        source_rows = source_rows.sort_values(["time_h", "_excel_row"])
+
+        group_has_sampling = False
+        for _, source_row in source_rows.iterrows():
+            liquid_sample = source_row["liquid_sample_mL"]
+            headspace_sample = source_row["headspace_sample_mL"]
+            liquid_sample = 0.0 if value_is_missing(liquid_sample) else float(liquid_sample)
+            headspace_sample = 0.0 if value_is_missing(headspace_sample) else float(headspace_sample)
+            if liquid_sample > 0 or headspace_sample > 0:
+                group_has_sampling = True
+                break
+
+        if not group_has_sampling:
+            continue
+
+        sample_result_mask = (
+            corrected["experiment_id"].apply(_normalized_experiment_id) == experiment_id
+        ) & (corrected["sample_id"].astype(str) == str(sample_id))
+
+        gas_ids = []
+        for gas_id in corrected.loc[sample_result_mask, "gas_id"].astype(str):
+            gas_id = gas_id.strip().upper()
+            if gas_id not in gas_ids:
+                gas_ids.append(gas_id)
+
+        for gas_id in gas_ids:
+            cumulative_molecular = 0.0
+            molecular_complete = True
+            cumulative_reactive = 0.0
+            reactive_complete = True
+
+            for _, source_row in source_rows.iterrows():
+                excel_row = int(source_row["_excel_row"])
+                liquid_sample_ml = source_row["liquid_sample_mL"]
+                headspace_sample_ml = source_row["headspace_sample_mL"]
+                liquid_sample_ml = 0.0 if value_is_missing(liquid_sample_ml) else float(liquid_sample_ml)
+                headspace_sample_ml = 0.0 if value_is_missing(headspace_sample_ml) else float(headspace_sample_ml)
+                sampling_occurs = liquid_sample_ml > 0 or headspace_sample_ml > 0
+
+                row_mask = (
+                    sample_result_mask
+                    & (corrected["gas_id"].astype(str).str.upper() == gas_id)
+                    & (corrected["excel_row"].astype(int) == excel_row)
+                )
+                matching_indices = corrected.index[row_mask].tolist()
+
+                if len(matching_indices) == 0:
+                    if sampling_occurs:
+                        molecular_complete = False
+                        if gas_id in ["CO2", "H2S"]:
+                            reactive_complete = False
+                    continue
+
+                row_index = matching_indices[0]
+                row = corrected.loc[row_index].copy()
+
+                if str(row.get("processing_error", "")).strip() != "":
+                    if sampling_occurs:
+                        molecular_complete = False
+                        if gas_id in ["CO2", "H2S"]:
+                            reactive_complete = False
+                    continue
+
+                corrected.at[row_index, "cumulative_sampled_molecular_mmol"] = (
+                    cumulative_molecular if molecular_complete else None
+                )
+                corrected.at[row_index, "sampling_corrected_total_mmol"] = (
+                    float(row["total_bottle_mmol"]) + cumulative_molecular
+                    if molecular_complete
+                    else None
+                )
+
+                if not molecular_complete:
+                    corrected.at[row_index, "QC_status"] = _add_qc_flag(
+                        row, "SAMPLING_CORRECTION_INCOMPLETE"
+                    )
+
+                liquid_volume_ml = float(row["liquid_volume_mL"])
+                headspace_volume_ml = (
+                    float(row["bottle_volume_mL"]) - liquid_volume_ml
+                )
+
+                sampled_headspace = 0.0
+                if headspace_sample_ml > 0:
+                    sampled_headspace = (
+                        float(row["headspace_mmol"])
+                        * headspace_sample_ml
+                        / headspace_volume_ml
+                    )
+
+                sampled_liquid_molecular = 0.0
+                if liquid_sample_ml > 0:
+                    sampled_liquid_molecular = (
+                        float(row["molecular_dissolved_mmol"])
+                        * liquid_sample_ml
+                        / liquid_volume_ml
+                    )
+
+                sampled_total_molecular = (
+                    sampled_headspace + sampled_liquid_molecular
+                )
+
+                corrected.at[row_index, "sampled_headspace_mmol"] = sampled_headspace
+                corrected.at[row_index, "sampled_liquid_molecular_mmol"] = sampled_liquid_molecular
+                corrected.at[row_index, "sampled_total_molecular_mmol"] = sampled_total_molecular
+
+                if gas_id == "CO2":
+                    dic_value = row.get("estimated_DIC_mmol")
+                    dic_available = not value_is_missing(dic_value)
+
+                    if dic_available:
+                        current_tic = float(row["headspace_mmol"]) + float(dic_value)
+                        corrected.at[row_index, "estimated_total_inorganic_C_bottle_mmol"] = current_tic
+                    else:
+                        current_tic = None
+
+                    if reactive_complete and dic_available:
+                        corrected.at[row_index, "cumulative_sampled_inorganic_C_mmol"] = cumulative_reactive
+                        corrected.at[row_index, "estimated_sampling_corrected_total_inorganic_C_mmol"] = (
+                            current_tic + cumulative_reactive
+                        )
+                    else:
+                        corrected.at[row_index, "cumulative_sampled_inorganic_C_mmol"] = None
+                        corrected.at[row_index, "estimated_sampling_corrected_total_inorganic_C_mmol"] = None
+
+                    if not reactive_complete:
+                        corrected.at[row_index, "QC_status"] = _add_qc_flag(
+                            corrected.loc[row_index],
+                            "DIC_SAMPLING_CORRECTION_INCOMPLETE",
+                        )
+
+                    if liquid_sample_ml > 0 and not dic_available:
+                        reactive_complete = False
+                        corrected.at[row_index, "QC_status"] = _add_qc_flag(
+                            corrected.loc[row_index],
+                            "DIC_SAMPLING_CORRECTION_INCOMPLETE",
+                        )
+                    else:
+                        sampled_dic = (
+                            float(dic_value) * liquid_sample_ml / liquid_volume_ml
+                            if dic_available
+                            else 0.0
+                        )
+                        sampled_tic = sampled_headspace + sampled_dic
+                        if dic_available:
+                            corrected.at[row_index, "sampled_DIC_mmol"] = sampled_dic
+                            corrected.at[row_index, "sampled_total_inorganic_C_mmol"] = sampled_tic
+                        if reactive_complete:
+                            cumulative_reactive += sampled_tic
+
+                if gas_id == "H2S":
+                    sulfide_value = row.get("estimated_total_sulfide_mmol")
+                    sulfide_available = not value_is_missing(sulfide_value)
+
+                    if sulfide_available:
+                        current_total_sulfide = (
+                            float(row["headspace_mmol"]) + float(sulfide_value)
+                        )
+                        corrected.at[row_index, "estimated_total_sulfide_bottle_mmol"] = current_total_sulfide
+                    else:
+                        current_total_sulfide = None
+
+                    if reactive_complete and sulfide_available:
+                        corrected.at[row_index, "cumulative_sampled_total_sulfide_mmol"] = cumulative_reactive
+                        corrected.at[row_index, "estimated_sampling_corrected_total_sulfide_mmol"] = (
+                            current_total_sulfide + cumulative_reactive
+                        )
+                    else:
+                        corrected.at[row_index, "cumulative_sampled_total_sulfide_mmol"] = None
+                        corrected.at[row_index, "estimated_sampling_corrected_total_sulfide_mmol"] = None
+
+                    if not reactive_complete:
+                        corrected.at[row_index, "QC_status"] = _add_qc_flag(
+                            corrected.loc[row_index],
+                            "TOTAL_SULFIDE_SAMPLING_CORRECTION_INCOMPLETE",
+                        )
+
+                    if liquid_sample_ml > 0 and not sulfide_available:
+                        reactive_complete = False
+                        corrected.at[row_index, "QC_status"] = _add_qc_flag(
+                            corrected.loc[row_index],
+                            "TOTAL_SULFIDE_SAMPLING_CORRECTION_INCOMPLETE",
+                        )
+                    else:
+                        sampled_dissolved_sulfide = (
+                            float(sulfide_value)
+                            * liquid_sample_ml
+                            / liquid_volume_ml
+                            if sulfide_available
+                            else 0.0
+                        )
+                        sampled_total_sulfide = (
+                            sampled_headspace + sampled_dissolved_sulfide
+                        )
+                        if sulfide_available:
+                            corrected.at[row_index, "sampled_dissolved_total_sulfide_mmol"] = sampled_dissolved_sulfide
+                            corrected.at[row_index, "sampled_total_sulfide_mmol"] = sampled_total_sulfide
+                        if reactive_complete:
+                            cumulative_reactive += sampled_total_sulfide
+
+                if molecular_complete:
+                    cumulative_molecular += sampled_total_molecular
+
+    return corrected
+
+
 def make_wide_results_table(results_table):
     """Return one user-facing row per original bottle/time-point measurement.
 
@@ -659,6 +1027,12 @@ def make_wide_results_table(results_table):
     if not required_internal_columns.issubset(set(results_table.columns)):
         return results_table.copy()
 
+    results_table = results_table.copy()
+    if "liquid_sample_mL" not in results_table.columns:
+        results_table["liquid_sample_mL"] = 0.0
+    if "headspace_sample_mL" not in results_table.columns:
+        results_table["headspace_sample_mL"] = 0.0
+
     shared_columns = [
         "excel_row",
         "experiment_id",
@@ -668,6 +1042,8 @@ def make_wide_results_table(results_table):
         "temperature_C",
         "bottle_volume_mL",
         "liquid_volume_mL",
+        "liquid_sample_mL",
+        "headspace_sample_mL",
         "salinity_g_L_NaCl",
         "pH",
     ]
@@ -681,6 +1057,22 @@ def make_wide_results_table(results_table):
         "reactive_dissolved_mmol",
         "partial_pressure_Pa",
         "estimated_DIC_mmol",
+        "estimated_total_sulfide_mmol",
+        "sampled_headspace_mmol",
+        "sampled_liquid_molecular_mmol",
+        "sampled_total_molecular_mmol",
+        "cumulative_sampled_molecular_mmol",
+        "sampling_corrected_total_mmol",
+        "estimated_total_inorganic_C_bottle_mmol",
+        "sampled_DIC_mmol",
+        "sampled_total_inorganic_C_mmol",
+        "cumulative_sampled_inorganic_C_mmol",
+        "estimated_sampling_corrected_total_inorganic_C_mmol",
+        "estimated_total_sulfide_bottle_mmol",
+        "sampled_dissolved_total_sulfide_mmol",
+        "sampled_total_sulfide_mmol",
+        "cumulative_sampled_total_sulfide_mmol",
+        "estimated_sampling_corrected_total_sulfide_mmol",
         "CO2_star_percent",
         "HCO3_percent",
         "CO3_percent",
@@ -741,6 +1133,8 @@ def make_wide_results_table(results_table):
         "temperature_C",
         "bottle_volume_mL",
         "liquid_volume_mL",
+        "liquid_sample_mL",
+        "headspace_sample_mL",
         "salinity_g_L_NaCl",
         "pH",
     ]
@@ -771,6 +1165,12 @@ def make_compact_results_table(results_table):
     required_internal_columns = {"excel_row", "gas_id"}
     if not required_internal_columns.issubset(set(results_table.columns)):
         return results_table.copy()
+
+    results_table = results_table.copy()
+    if "liquid_sample_mL" not in results_table.columns:
+        results_table["liquid_sample_mL"] = 0.0
+    if "headspace_sample_mL" not in results_table.columns:
+        results_table["headspace_sample_mL"] = 0.0
 
     shared_columns = [
         "excel_row",
@@ -835,6 +1235,15 @@ def make_compact_results_table(results_table):
                 gas_rows[liquid_source]
             )
 
+        if "sampling_corrected_total_mmol" in gas_rows.columns:
+            if not gas_rows["sampling_corrected_total_mmol"].isna().all():
+                compact[gas_id + "_sampling_corrected_total_mmol"] = compact[
+                    "excel_row"
+                ].map(gas_rows["sampling_corrected_total_mmol"])
+                compact[gas_id + "_cumulative_sampled_mmol"] = compact[
+                    "excel_row"
+                ].map(gas_rows["cumulative_sampled_molecular_mmol"])
+
         # Partial pressure varies by bottle/time point, so it belongs with
         # measurement results rather than static metadata.
         if "partial_pressure_Pa" in gas_rows.columns:
@@ -849,6 +1258,14 @@ def make_compact_results_table(results_table):
         if gas_id == "CO2":
             optional_metrics = [
                 ("estimated_DIC_mmol", "estimated_DIC_mmol"),
+                (
+                    "estimated_total_inorganic_C_bottle_mmol",
+                    "estimated_total_inorganic_C_bottle_mmol",
+                ),
+                (
+                    "estimated_sampling_corrected_total_inorganic_C_mmol",
+                    "estimated_sampling_corrected_total_inorganic_C_mmol",
+                ),
             ]
 
             for source_metric, output_suffix in optional_metrics:
@@ -862,6 +1279,14 @@ def make_compact_results_table(results_table):
         if gas_id == "H2S":
             optional_metrics = [
                 ("estimated_total_sulfide_mmol", "estimated_total_sulfide_mmol"),
+                (
+                    "estimated_total_sulfide_bottle_mmol",
+                    "estimated_total_sulfide_bottle_mmol",
+                ),
+                (
+                    "estimated_sampling_corrected_total_sulfide_mmol",
+                    "estimated_sampling_corrected_total_sulfide_mmol",
+                ),
                 ("H2S_percent", "H2S_percent"),
                 ("HS_percent", "HS_percent"),
                 ("S2_percent", "S2_percent"),
