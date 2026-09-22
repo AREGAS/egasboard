@@ -7,6 +7,7 @@ import {calculateNaclSalinityCorrection} from "../js/salinity.js";
 import {
   fitCalibrationsFromTable,
   processMeasurementTable,
+  applySamplingCorrections,
   makeCompactResultsTable
 } from "../js/batch-processing.js";
 
@@ -224,7 +225,8 @@ function compareNumericKeys(actual, expected, keys, tolerance = 1e-10, prefix = 
 // Example batch parity against the Python reference.
 {
   const fit = fitCalibrationsFromTable(fixture.calibration_rows);
-  const results = processMeasurementTable(fixture.measurement_rows, fit.calibrations, 1.0);
+  let results = processMeasurementTable(fixture.measurement_rows, fit.calibrations, 1.0);
+  results = applySamplingCorrections(results, fixture.measurement_rows);
   const compact = makeCompactResultsTable(results);
 
   const expectedSummary = fixture.example_batch.calibration_summary;
@@ -263,6 +265,62 @@ function compareNumericKeys(actual, expected, keys, tolerance = 1e-10, prefix = 
       }
     }
   }
+}
+
+
+// Longitudinal sampling correction: a sample taken after row 1 affects row 2 only.
+{
+  const calibrationRows = [
+    {gas_id: "CO", calibration_id: "CO_0", gas_percent: 0, peak_area: 0},
+    {gas_id: "CO", calibration_id: "CO_10", gas_percent: 10, peak_area: 1000}
+  ];
+  const measurementRows = [
+    {
+      experiment_id: "Sampling_test",
+      sample_id: "Bottle_01",
+      time_h: 0,
+      pressure_bar_abs: 1.0,
+      temperature_C: 25,
+      bottle_volume_mL: 120,
+      liquid_volume_mL: 50,
+      liquid_sample_mL: 1.0,
+      headspace_sample_mL: 0.1,
+      CO: 500
+    },
+    {
+      experiment_id: "Sampling_test",
+      sample_id: "Bottle_01",
+      time_h: 1,
+      pressure_bar_abs: 1.0,
+      temperature_C: 25,
+      bottle_volume_mL: 120,
+      liquid_volume_mL: 49,
+      liquid_sample_mL: 0,
+      headspace_sample_mL: 0,
+      CO: 500
+    }
+  ];
+
+  const fit = fitCalibrationsFromTable(calibrationRows);
+  let results = processMeasurementTable(measurementRows, fit.calibrations, 1.0);
+  results = applySamplingCorrections(results, measurementRows);
+
+  const first = results[0];
+  const second = results[1];
+  const expectedFirstSampled =
+    first.headspace_mmol * 0.1 / (120 - 50) +
+    first.molecular_dissolved_mmol * 1.0 / 50;
+
+  close(first.cumulative_sampled_molecular_mmol, 0, 1e-12, "sampling.first.cumulative");
+  close(first.sampling_corrected_total_mmol, first.total_bottle_mmol, 1e-12, "sampling.first.corrected");
+  close(first.sampled_total_molecular_mmol, expectedFirstSampled, 1e-12, "sampling.first.removed");
+  close(second.cumulative_sampled_molecular_mmol, expectedFirstSampled, 1e-12, "sampling.second.cumulative");
+  close(
+    second.sampling_corrected_total_mmol,
+    second.total_bottle_mmol + expectedFirstSampled,
+    1e-12,
+    "sampling.second.corrected"
+  );
 }
 
 console.log("Static JavaScript scientific parity tests passed.");
