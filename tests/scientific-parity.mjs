@@ -165,6 +165,52 @@ function compareNumericKeys(actual, expected, keys, tolerance = 1e-10, prefix = 
   ], 1e-11, "dose_o2.");
 }
 
+// Headspace-target dosing reaches the requested equilibrated ppmv target.
+{
+  const result = calculateRequiredGasAddition({
+    gas_id: "CO",
+    target_mode: "headspace",
+    target_headspace_percent: 0.05,
+    target_dissolved_umol_l: null,
+    target_basis: "molecular",
+    bottle_volume_ml: 120,
+    liquid_volume_ml: 100,
+    temperature_c: 25,
+    salinity_g_l_nacl: 0,
+    ph: null,
+    initial_gas_percent: 0,
+    initial_pressure_bar_abs: 1.01325,
+    dose_gas_percent: 100,
+    dose_pressure_bar_abs: 1.01325,
+    compressibility_factor: 1
+  });
+
+  close(result.final_headspace_ppmv, 500, 1e-9, "headspace target ppmv");
+  close(result.final_headspace_percent, 0.05, 1e-12, "headspace target percent");
+  assert.ok(result.required_dose_mix_volume_mL > 0);
+}
+
+// A dosing mixture that is too dilute for the requested equilibrium target is rejected.
+{
+  assert.throws(() => calculateRequiredGasAddition({
+    gas_id: "CO",
+    target_mode: "headspace",
+    target_headspace_percent: 0.05,
+    target_dissolved_umol_l: null,
+    target_basis: "molecular",
+    bottle_volume_ml: 120,
+    liquid_volume_ml: 100,
+    temperature_c: 25,
+    salinity_g_l_nacl: 0,
+    ph: null,
+    initial_gas_percent: 0,
+    initial_pressure_bar_abs: 1.01325,
+    dose_gas_percent: 0.05,
+    dose_pressure_bar_abs: 1.01325,
+    compressibility_factor: 1
+  }), /cannot be reached/);
+}
+
 // Reactive dosing supports either molecular gas or the total dissolved pool.
 {
   const molecular = calculateRequiredGasAddition({
