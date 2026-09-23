@@ -342,6 +342,41 @@ This does not replace the physical CO₂ result. It is an additional
 carbonate-system quantity. The distinction matters especially when pH changes,
 because carbonate speciation can shift independently of molecular CO2.
 
+
+## Gas dosing
+
+Gas dosing can use either a dissolved concentration target or an equilibrated headspace target.
+
+For a dissolved target, Henry's law is inverted to obtain the required target-gas partial pressure. For CO2 and H2S, the target may refer to the molecular dissolved species or, when pH is supplied, the estimated total dissolved pool.
+
+For a headspace target, `%` or `ppmv` is converted to a mole fraction, and the final equilibrium must satisfy:
+
+\[
+p_i = y_{target} P_{final}
+\]
+
+The amount added is solved from the gas-liquid mass balance. The target gas can partition between headspace and liquid, while the non-target fraction of the dosing mixture is assumed to remain in the headspace. The pressure increase caused by the added dosing mixture is included in the final headspace concentration.
+
+If the requested headspace concentration cannot be reached with the entered dosing-mixture composition, the calculation returns an error.
+
+### Gas-phase concentration units
+
+`ppmv` means parts per million by volume. For the ideal gas mixtures used by (E)Gasboard, volume fraction and mole fraction are treated as equivalent.
+
+\[
+1\% = 10000\;ppmv
+\]
+
+Thus:
+
+- 500 ppmv = 0.05%
+- 1000 ppmv = 0.1%
+- 10000 ppmv = 1%
+
+`ppmv` is a gas-phase composition unit and is not a mass-based ppm concentration.
+
+---
+
 ## Main assumptions
 
 - Calibration and sample injections are assumed to be pressure-normalized before injection.

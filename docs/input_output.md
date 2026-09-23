@@ -82,3 +82,8 @@ If pH is supplied:
 These reactive pools are separate from the molecular `total_bottle_mmol` result. Estimated DIC is strongly pH-dependent; for quantitative CO2 utilization/carbon balances, pH should preferably be measured at each time point.
 
 Input QC stays quiet when nothing is wrong and reports **All good!**.
+
+
+## Gas dosing units
+
+Gas dosing supports dissolved targets in µM and equilibrated headspace targets in either `%` or `ppmv`. Initial headspace composition and dosing-mixture composition can also be entered as `%` or `ppmv`. Results report the equilibrated headspace concentration in both units.
