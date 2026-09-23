@@ -253,43 +253,52 @@ def calculate_required_gas_addition(
     dose_pressure_bar_abs=1.01325,
     compressibility_factor=1.0,
     target_basis="molecular",
+    target_mode="dissolved",
+    target_headspace_percent=None,
 ):
-    """Calculate gas addition for an equilibrium dissolved target.
+    """Calculate gas addition for a dissolved or equilibrated headspace target.
 
-    target_basis = "molecular" means molecular dissolved gas.
-    target_basis = "total_pool" means DIC for CO2 or total sulfide for H2S.
+    target_mode = "dissolved" uses target_dissolved_umol_l.
+    target_mode = "headspace" uses target_headspace_percent.
+
+    For dissolved CO2/H2S targets, target_basis = "total_pool" means DIC or
+    total dissolved sulfide. Otherwise target_basis = "molecular".
     """
 
-    if target_dissolved_umol_l < 0:
-        raise ValueError("Target dissolved concentration cannot be negative.")
+    gas_id = str(gas_id).strip().upper()
+    target_mode = str(target_mode or "dissolved").strip().lower()
+    target_basis = str(target_basis or "molecular").strip().lower()
 
-    target_basis = str(target_basis).strip().lower()
+    if target_mode not in ["dissolved", "headspace"]:
+        raise ValueError("Target mode must be dissolved or headspace.")
     if target_basis not in ["molecular", "total_pool"]:
         raise ValueError("Target basis must be molecular or total_pool.")
     if target_basis == "total_pool" and gas_id not in ["CO2", "H2S"]:
         raise ValueError("Total dissolved pool is only available for CO2 and H2S.")
-
     if dose_gas_percent <= 0 or dose_gas_percent > 100:
-        raise ValueError("Dosing-gas percentage must be above 0 and at most 100%.")
-
+        raise ValueError("Dosing-gas concentration must be above 0 and at most 100%.")
     if dose_pressure_bar_abs <= 0:
         raise ValueError("Dosing-gas pressure must be larger than zero.")
-
+    if initial_pressure_bar_abs <= 0:
+        raise ValueError("Initial pressure must be larger than zero.")
+    if initial_gas_percent < 0 or initial_gas_percent > 100:
+        raise ValueError("Initial headspace gas concentration must be between 0 and 100%.")
     if bottle_volume_ml <= 0:
         raise ValueError("Bottle volume must be larger than zero.")
-
     if liquid_volume_ml < 0 or liquid_volume_ml >= bottle_volume_ml:
         raise ValueError(
             "Liquid volume must be at least 0 mL and smaller than bottle volume."
         )
+    if temperature_c <= -273.15:
+        raise ValueError("Temperature must be above absolute zero.")
+    if compressibility_factor <= 0:
+        raise ValueError("Compressibility factor Z must be larger than zero.")
+    if salinity_g_l_nacl < 0:
+        raise ValueError("NaCl-equivalent concentration cannot be negative.")
 
     temperature_k = temperature_c + 273.15
-    headspace_volume_ml = bottle_volume_ml - liquid_volume_ml
-    headspace_volume_m3 = headspace_volume_ml * ML_TO_M3
+    headspace_volume_m3 = (bottle_volume_ml - liquid_volume_ml) * ML_TO_M3
     liquid_volume_m3 = liquid_volume_ml * ML_TO_M3
-
-    # 1 micromol/L = 0.001 mol/m3.
-    target_dissolved_mol_m3 = target_dissolved_umol_l * 0.001
 
     henry_pure_water = calculate_henry_constant(gas_id, temperature_k)
     salinity_result = calculate_nacl_salinity_correction(
@@ -313,48 +322,8 @@ def calculate_required_gas_addition(
         speciation_results = calculate_h2s_speciation(ph, temperature_k)
         reactive_factor = speciation_results["reactive_factor"]
 
-    if target_basis == "total_pool" and speciation_results is None:
+    if target_mode == "dissolved" and target_basis == "total_pool" and speciation_results is None:
         raise ValueError("pH is required when the target is DIC or total sulfide.")
-
-    effective_henry = (
-        henry_constant * reactive_factor
-        if target_basis == "total_pool"
-        else henry_constant
-    )
-
-    if effective_henry <= 0:
-        raise ValueError("Effective Henry solubility must be larger than zero.")
-
-    required_partial_pressure_pa = target_dissolved_mol_m3 / effective_henry
-    target_molecular_concentration_mol_m3 = (
-        henry_constant * required_partial_pressure_pa
-    )
-    target_pool_concentration_mol_m3 = (
-        target_molecular_concentration_mol_m3 * reactive_factor
-    )
-
-    numerator = required_partial_pressure_pa * headspace_volume_m3
-    denominator = compressibility_factor * R * temperature_k
-    target_headspace_moles = numerator / denominator
-
-    target_molecular_dissolved_moles = (
-        target_molecular_concentration_mol_m3 * liquid_volume_m3
-    )
-    target_reactive_pool_moles = (
-        target_pool_concentration_mol_m3 * liquid_volume_m3
-    )
-    target_gas_derived_bottle_moles = (
-        target_headspace_moles + target_reactive_pool_moles
-    )
-
-    target_headspace_mmol = target_headspace_moles * MOL_TO_MMOL
-    target_molecular_dissolved_mmol = (
-        target_molecular_dissolved_moles * MOL_TO_MMOL
-    )
-    target_reactive_pool_mmol = target_reactive_pool_moles * MOL_TO_MMOL
-    target_gas_derived_bottle_mmol = (
-        target_gas_derived_bottle_moles * MOL_TO_MMOL
-    )
 
     initial_state = calculate_gas_state(
         gas_id=gas_id,
@@ -379,16 +348,167 @@ def calculate_required_gas_addition(
             + initial_state["estimated_total_sulfide_mmol"]
         )
 
-    target_minus_initial_mmol = (
-        target_gas_derived_bottle_mmol - initial_gas_derived_bottle_mmol
+    initial_gas_derived_bottle_moles = initial_gas_derived_bottle_mmol / MOL_TO_MMOL
+    initial_total_pressure_pa = initial_pressure_bar_abs * BAR_TO_PA
+    initial_total_headspace_moles = (
+        initial_total_pressure_pa
+        * headspace_volume_m3
+        / (compressibility_factor * R * temperature_k)
     )
-    required_target_gas_mmol = max(0.0, target_minus_initial_mmol)
+    initial_target_headspace_moles = initial_state["headspace_mmol"] / MOL_TO_MMOL
+    initial_non_target_headspace_moles = max(
+        0.0,
+        initial_total_headspace_moles - initial_target_headspace_moles,
+    )
 
+    gas_derived_capacity_mol_per_pa = (
+        headspace_volume_m3 / (compressibility_factor * R * temperature_k)
+        + henry_constant * reactive_factor * liquid_volume_m3
+    )
+    if gas_derived_capacity_mol_per_pa <= 0:
+        raise ValueError("Gas-equilibrium capacity must be larger than zero.")
+
+    pressure_per_headspace_mole_pa = (
+        compressibility_factor * R * temperature_k / headspace_volume_m3
+    )
     dose_fraction = dose_gas_percent / 100.0
-    required_dose_mix_mmol = required_target_gas_mmol / dose_fraction
-    required_dose_mix_moles = required_dose_mix_mmol / MOL_TO_MMOL
-    dose_pressure_pa = dose_pressure_bar_abs * BAR_TO_PA
 
+    requested_partial_pressure_pa = None
+    requested_headspace_percent = None
+    requested_headspace_ppmv = None
+    target_dissolved_value = None
+    required_dose_mix_moles = 0.0
+    target_minus_initial_mmol = 0.0
+
+    warnings = list(initial_state["warnings"])
+    if salinity_result["warning"] is not None:
+        if salinity_result["warning"] not in warnings:
+            warnings.append(salinity_result["warning"])
+
+    if target_mode == "dissolved":
+        if target_dissolved_umol_l is None or target_dissolved_umol_l < 0:
+            raise ValueError("Target dissolved concentration must be zero or larger.")
+
+        target_dissolved_value = float(target_dissolved_umol_l)
+        target_dissolved_mol_m3 = target_dissolved_value * 0.001
+        effective_henry = (
+            henry_constant * reactive_factor
+            if target_basis == "total_pool"
+            else henry_constant
+        )
+        if effective_henry <= 0:
+            raise ValueError("Effective Henry solubility must be larger than zero.")
+
+        requested_partial_pressure_pa = target_dissolved_mol_m3 / effective_henry
+        requested_gas_derived_bottle_moles = (
+            gas_derived_capacity_mol_per_pa * requested_partial_pressure_pa
+        )
+        target_minus_initial_mmol = (
+            requested_gas_derived_bottle_moles - initial_gas_derived_bottle_moles
+        ) * MOL_TO_MMOL
+
+        if target_minus_initial_mmol <= 0:
+            required_dose_mix_moles = 0.0
+            warnings.append("Target already reached. Gas to add is 0.")
+        else:
+            required_dose_mix_moles = (
+                target_minus_initial_mmol / MOL_TO_MMOL / dose_fraction
+            )
+
+    else:
+        if target_headspace_percent is None:
+            raise ValueError("Target headspace concentration is required.")
+
+        requested_headspace_percent = float(target_headspace_percent)
+        if requested_headspace_percent < 0 or requested_headspace_percent >= 100:
+            raise ValueError(
+                "Target headspace concentration must be at least 0% and below 100%."
+            )
+
+        requested_headspace_ppmv = requested_headspace_percent * 10000.0
+        requested_fraction = requested_headspace_percent / 100.0
+        initial_fraction = initial_gas_percent / 100.0
+
+        if initial_fraction >= requested_fraction:
+            required_dose_mix_moles = 0.0
+            warnings.append(
+                "Target headspace concentration is already reached or exceeded. Gas to add is 0."
+            )
+        elif requested_fraction == 0:
+            required_dose_mix_moles = 0.0
+        else:
+            target_to_other_pressure_ratio = (
+                requested_fraction / (1.0 - requested_fraction)
+            )
+            equilibrium_ratio = (
+                gas_derived_capacity_mol_per_pa
+                * target_to_other_pressure_ratio
+                * pressure_per_headspace_mole_pa
+            )
+            denominator = (
+                dose_fraction - equilibrium_ratio * (1.0 - dose_fraction)
+            )
+            numerator = (
+                equilibrium_ratio * initial_non_target_headspace_moles
+                - initial_gas_derived_bottle_moles
+            )
+
+            if denominator <= 0:
+                raise ValueError(
+                    "The requested headspace concentration cannot be reached with this dosing mixture under the entered conditions. Increase the target-gas concentration of the dosing mixture."
+                )
+
+            required_dose_mix_moles = numerator / denominator
+            if required_dose_mix_moles < 0:
+                raise ValueError(
+                    "The requested headspace concentration cannot be reached from the entered starting conditions by adding this dosing mixture."
+                )
+
+            target_minus_initial_mmol = (
+                dose_fraction * required_dose_mix_moles * MOL_TO_MMOL
+            )
+
+    added_target_gas_moles = dose_fraction * required_dose_mix_moles
+    added_non_target_gas_moles = (1.0 - dose_fraction) * required_dose_mix_moles
+    final_target_gas_derived_moles = (
+        initial_gas_derived_bottle_moles + added_target_gas_moles
+    )
+    final_non_target_headspace_moles = (
+        initial_non_target_headspace_moles + added_non_target_gas_moles
+    )
+
+    final_partial_pressure_pa = (
+        final_target_gas_derived_moles / gas_derived_capacity_mol_per_pa
+    )
+    final_non_target_pressure_pa = (
+        final_non_target_headspace_moles * pressure_per_headspace_mole_pa
+    )
+    final_pressure_pa = final_partial_pressure_pa + final_non_target_pressure_pa
+    final_headspace_fraction = (
+        final_partial_pressure_pa / final_pressure_pa if final_pressure_pa > 0 else 0.0
+    )
+    final_headspace_percent = final_headspace_fraction * 100.0
+    final_headspace_ppmv = final_headspace_fraction * 1_000_000.0
+
+    final_molecular_concentration_mol_m3 = henry_constant * final_partial_pressure_pa
+    final_reactive_pool_concentration_mol_m3 = (
+        final_molecular_concentration_mol_m3 * reactive_factor
+    )
+    final_headspace_moles = (
+        final_partial_pressure_pa
+        * headspace_volume_m3
+        / (compressibility_factor * R * temperature_k)
+    )
+    final_molecular_dissolved_moles = (
+        final_molecular_concentration_mol_m3 * liquid_volume_m3
+    )
+    final_reactive_pool_moles = (
+        final_reactive_pool_concentration_mol_m3 * liquid_volume_m3
+    )
+
+    required_dose_mix_mmol = required_dose_mix_moles * MOL_TO_MMOL
+    required_target_gas_mmol = added_target_gas_moles * MOL_TO_MMOL
+    dose_pressure_pa = dose_pressure_bar_abs * BAR_TO_PA
     dose_volume_m3 = (
         required_dose_mix_moles
         * compressibility_factor
@@ -398,31 +518,18 @@ def calculate_required_gas_addition(
     )
     dose_volume_ml = dose_volume_m3 / ML_TO_M3
 
-    warnings = []
-    warnings.extend(initial_state["warnings"])
-
-    if salinity_result["warning"] is not None:
-        if salinity_result["warning"] not in warnings:
-            warnings.append(salinity_result["warning"])
-
-    if target_minus_initial_mmol < 0:
+    if target_mode == "headspace" and gas_id in ["CO2", "H2S"] and speciation_results is None:
         warnings.append(
-            "Target already reached. Gas to add is 0."
+            f"{gas_id}: headspace-target dosing without pH includes molecular dissolution only; the pH-dependent dissolved pool is not included."
         )
 
     return {
         "gas_id": gas_id,
+        "target_mode": target_mode,
         "target_basis": target_basis,
-        "target_dissolved_umol_L": target_dissolved_umol_l,
-        "target_molecular_dissolved_mmol": target_molecular_dissolved_mmol,
-        "target_dissolved_mmol": (
-            target_reactive_pool_mmol
-            if target_basis == "total_pool"
-            else target_molecular_dissolved_mmol
-        ),
-        "target_reactive_pool_mmol": target_reactive_pool_mmol,
-        "target_headspace_mmol": target_headspace_mmol,
-        "target_total_bottle_mmol": target_gas_derived_bottle_mmol,
+        "target_dissolved_umol_L": target_dissolved_value,
+        "target_headspace_percent": requested_headspace_percent,
+        "target_headspace_ppmv": requested_headspace_ppmv,
         "initial_total_bottle_mmol": initial_gas_derived_bottle_mmol,
         "target_minus_initial_mmol": target_minus_initial_mmol,
         "required_target_gas_mmol": required_target_gas_mmol,
@@ -430,10 +537,41 @@ def calculate_required_gas_addition(
         "required_dose_mix_mmol": required_dose_mix_mmol,
         "dose_pressure_bar_abs": dose_pressure_bar_abs,
         "required_dose_mix_volume_mL": dose_volume_ml,
-        "required_partial_pressure_Pa": required_partial_pressure_pa,
-        "required_partial_pressure_bar": required_partial_pressure_pa / BAR_TO_PA,
+        "required_partial_pressure_Pa": requested_partial_pressure_pa,
+        "required_partial_pressure_bar": (
+            None
+            if requested_partial_pressure_pa is None
+            else requested_partial_pressure_pa / BAR_TO_PA
+        ),
+        "final_partial_pressure_Pa": final_partial_pressure_pa,
+        "final_partial_pressure_bar": final_partial_pressure_pa / BAR_TO_PA,
+        "final_pressure_bar_abs": final_pressure_pa / BAR_TO_PA,
+        "final_headspace_percent": final_headspace_percent,
+        "final_headspace_ppmv": final_headspace_ppmv,
+        "final_headspace_mmol": final_headspace_moles * MOL_TO_MMOL,
+        "final_molecular_dissolved_umol_L": (
+            final_molecular_concentration_mol_m3 * 1000.0
+        ),
+        "final_molecular_dissolved_mmol": (
+            final_molecular_dissolved_moles * MOL_TO_MMOL
+        ),
+        "final_reactive_pool_umol_L": (
+            final_reactive_pool_concentration_mol_m3 * 1000.0
+        ),
+        "final_reactive_pool_mmol": final_reactive_pool_moles * MOL_TO_MMOL,
+        "final_total_gas_derived_mmol": final_target_gas_derived_moles * MOL_TO_MMOL,
+        "target_molecular_dissolved_mmol": (
+            final_molecular_dissolved_moles * MOL_TO_MMOL
+        ),
+        "target_dissolved_mmol": (
+            final_reactive_pool_moles * MOL_TO_MMOL
+            if target_basis == "total_pool"
+            else final_molecular_dissolved_moles * MOL_TO_MMOL
+        ),
+        "target_reactive_pool_mmol": final_reactive_pool_moles * MOL_TO_MMOL,
+        "target_headspace_mmol": final_headspace_moles * MOL_TO_MMOL,
+        "target_total_bottle_mmol": final_target_gas_derived_moles * MOL_TO_MMOL,
         "henry_temperature_corrected": henry_constant,
-        "effective_henry_for_target": effective_henry,
         "reactive_factor": reactive_factor,
         "speciation": speciation_results,
         "warnings": warnings,
