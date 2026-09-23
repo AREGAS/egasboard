@@ -239,7 +239,9 @@ export function calculateGasState({
 
 export function calculateRequiredGasAddition({
   gas_id,
-  target_dissolved_umol_l,
+  target_mode = "dissolved",
+  target_dissolved_umol_l = null,
+  target_headspace_percent = null,
   target_basis = "molecular",
   bottle_volume_ml,
   liquid_volume_ml,
@@ -253,18 +255,20 @@ export function calculateRequiredGasAddition({
   compressibility_factor = 1.0
 }) {
   const gasId = String(gas_id).trim().toUpperCase();
-  const targetUmolL = Number(target_dissolved_umol_l);
+  const targetMode = String(target_mode || "dissolved").trim().toLowerCase();
   const targetBasis = String(target_basis || "molecular").trim().toLowerCase();
   const bottleVolumeMl = Number(bottle_volume_ml);
   const liquidVolumeMl = Number(liquid_volume_ml);
   const temperatureC = Number(temperature_c);
   const salinity = Number(salinity_g_l_nacl ?? 0.0);
+  const initialGasPercent = Number(initial_gas_percent);
+  const initialPressureBarAbs = Number(initial_pressure_bar_abs);
   const doseGasPercent = Number(dose_gas_percent);
   const dosePressureBarAbs = Number(dose_pressure_bar_abs);
   const Z = Number(compressibility_factor);
 
-  if (targetUmolL < 0) {
-    throw new Error("Target dissolved concentration cannot be negative.");
+  if (!["dissolved", "headspace"].includes(targetMode)) {
+    throw new Error("Target mode must be dissolved or headspace.");
   }
   if (!["molecular", "total_pool"].includes(targetBasis)) {
     throw new Error("Target basis must be molecular or total_pool.");
@@ -273,10 +277,16 @@ export function calculateRequiredGasAddition({
     throw new Error("Total dissolved pool is only available for CO2 and H2S.");
   }
   if (!(doseGasPercent > 0) || doseGasPercent > 100) {
-    throw new Error("Dosing-gas percentage must be above 0 and at most 100%.");
+    throw new Error("Dosing-gas concentration must be above 0 and at most 100%.");
   }
   if (!(dosePressureBarAbs > 0)) {
     throw new Error("Dosing-gas pressure must be larger than zero.");
+  }
+  if (!(initialPressureBarAbs > 0)) {
+    throw new Error("Initial pressure must be larger than zero.");
+  }
+  if (initialGasPercent < 0 || initialGasPercent > 100) {
+    throw new Error("Initial headspace gas concentration must be between 0 and 100%.");
   }
   if (!(bottleVolumeMl > 0)) {
     throw new Error("Bottle volume must be larger than zero.");
@@ -284,13 +294,19 @@ export function calculateRequiredGasAddition({
   if (liquidVolumeMl < 0 || liquidVolumeMl >= bottleVolumeMl) {
     throw new Error("Liquid volume must be at least 0 mL and smaller than bottle volume.");
   }
+  if (!(temperatureC > -273.15)) {
+    throw new Error("Temperature must be above absolute zero.");
+  }
+  if (!(Z > 0)) {
+    throw new Error("Compressibility factor Z must be larger than zero.");
+  }
+  if (salinity < 0) {
+    throw new Error("NaCl-equivalent concentration cannot be negative.");
+  }
 
   const temperatureK = temperatureC + 273.15;
   const headspaceVolumeM3 = (bottleVolumeMl - liquidVolumeMl) * ML_TO_M3;
   const liquidVolumeM3 = liquidVolumeMl * ML_TO_M3;
-
-  // 1 µmol/L = 0.001 mol/m3.
-  const targetDissolvedMolM3 = targetUmolL * 0.001;
 
   const henryPureWater = calculateHenryConstant(gasId, temperatureK);
   const salinityResult = calculateNaclSalinityCorrection(
@@ -315,49 +331,14 @@ export function calculateRequiredGasAddition({
     reactiveFactor = speciation.reactive_factor;
   }
 
-  if (targetBasis === "total_pool" && !speciation) {
+  if (targetMode === "dissolved" && targetBasis === "total_pool" && !speciation) {
     throw new Error("pH is required when the target is DIC or total sulfide.");
   }
 
-  // Molecular target: target concentration means CO2*, H2S or the selected gas.
-  // Total-pool target: target concentration means DIC or total dissolved sulfide.
-  const effectiveHenry = targetBasis === "total_pool"
-    ? henryConstant * reactiveFactor
-    : henryConstant;
-
-  if (!(effectiveHenry > 0)) {
-    throw new Error("Effective Henry solubility must be larger than zero.");
-  }
-
-  const requiredPartialPressurePa = targetDissolvedMolM3 / effectiveHenry;
-  const targetMolecularConcentrationMolM3 =
-    henryConstant * requiredPartialPressurePa;
-  const targetPoolConcentrationMolM3 =
-    targetMolecularConcentrationMolM3 * reactiveFactor;
-
-  const targetHeadspaceMoles =
-    (requiredPartialPressurePa * headspaceVolumeM3) /
-    (Z * R * temperatureK);
-
-  const targetMolecularDissolvedMoles =
-    targetMolecularConcentrationMolM3 * liquidVolumeM3;
-  const targetReactivePoolMoles =
-    targetPoolConcentrationMolM3 * liquidVolumeM3;
-
-  // For reactive gases, added gas can end up as acid/base species. The amount
-  // that must be added is therefore based on the full gas-derived pool.
-  const targetGasDerivedBottleMoles =
-    targetHeadspaceMoles + targetReactivePoolMoles;
-
-  const targetHeadspaceMmol = targetHeadspaceMoles * MOL_TO_MMOL;
-  const targetMolecularDissolvedMmol = targetMolecularDissolvedMoles * MOL_TO_MMOL;
-  const targetReactivePoolMmol = targetReactivePoolMoles * MOL_TO_MMOL;
-  const targetGasDerivedBottleMmol = targetGasDerivedBottleMoles * MOL_TO_MMOL;
-
   const initialState = calculateGasState({
     gas_id: gasId,
-    gas_percent: Number(initial_gas_percent),
-    pressure_bar_abs: Number(initial_pressure_bar_abs),
+    gas_percent: initialGasPercent,
+    pressure_bar_abs: initialPressureBarAbs,
     temperature_c: temperatureC,
     bottle_volume_ml: bottleVolumeMl,
     liquid_volume_ml: liquidVolumeMl,
@@ -378,39 +359,177 @@ export function calculateRequiredGasAddition({
       initialState.headspace_mmol + initialState.estimated_total_sulfide_mmol;
   }
 
-  const targetMinusInitialMmol =
-    targetGasDerivedBottleMmol - initialGasDerivedBottleMmol;
-  const requiredTargetGasMmol = Math.max(0.0, targetMinusInitialMmol);
-  const doseFraction = doseGasPercent / 100.0;
-  const requiredDoseMixMmol = requiredTargetGasMmol / doseFraction;
-  const requiredDoseMixMoles = requiredDoseMixMmol / MOL_TO_MMOL;
-  const dosePressurePa = dosePressureBarAbs * BAR_TO_PA;
+  const initialGasDerivedBottleMoles = initialGasDerivedBottleMmol / MOL_TO_MMOL;
+  const initialTotalPressurePa = initialPressureBarAbs * BAR_TO_PA;
+  const initialTotalHeadspaceMoles =
+    (initialTotalPressurePa * headspaceVolumeM3) /
+    (Z * R * temperatureK);
+  const initialTargetHeadspaceMoles = initialState.headspace_mmol / MOL_TO_MMOL;
+  const initialNonTargetHeadspaceMoles = Math.max(
+    0.0,
+    initialTotalHeadspaceMoles - initialTargetHeadspaceMoles
+  );
 
+  // At equilibrium, target-gas-derived moles are linear with target-gas
+  // partial pressure. For CO2/H2S, the pH-dependent dissolved pool is included
+  // when pH is supplied.
+  const gasDerivedCapacityMolPerPa =
+    headspaceVolumeM3 / (Z * R * temperatureK) +
+    henryConstant * reactiveFactor * liquidVolumeM3;
+
+  if (!(gasDerivedCapacityMolPerPa > 0)) {
+    throw new Error("Gas-equilibrium capacity must be larger than zero.");
+  }
+
+  const pressurePerHeadspaceMolePa =
+    (Z * R * temperatureK) / headspaceVolumeM3;
+  const doseFraction = doseGasPercent / 100.0;
+
+  let requestedPartialPressurePa = null;
+  let requestedHeadspacePercent = null;
+  let requestedHeadspacePpmv = null;
+  let targetDissolvedUmolL = null;
+  let requiredDoseMixMoles = 0.0;
+  let targetMinusInitialMmol = 0.0;
+  const warnings = [...initialState.warnings];
+
+  if (salinityResult.warning && !warnings.includes(salinityResult.warning)) {
+    warnings.push(salinityResult.warning);
+  }
+
+  if (targetMode === "dissolved") {
+    targetDissolvedUmolL = Number(target_dissolved_umol_l);
+    if (!Number.isFinite(targetDissolvedUmolL) || targetDissolvedUmolL < 0) {
+      throw new Error("Target dissolved concentration must be zero or larger.");
+    }
+
+    // 1 µmol/L = 0.001 mol/m3.
+    const targetDissolvedMolM3 = targetDissolvedUmolL * 0.001;
+    const effectiveHenry = targetBasis === "total_pool"
+      ? henryConstant * reactiveFactor
+      : henryConstant;
+
+    if (!(effectiveHenry > 0)) {
+      throw new Error("Effective Henry solubility must be larger than zero.");
+    }
+
+    requestedPartialPressurePa = targetDissolvedMolM3 / effectiveHenry;
+    const requestedGasDerivedBottleMoles =
+      gasDerivedCapacityMolPerPa * requestedPartialPressurePa;
+
+    targetMinusInitialMmol =
+      (requestedGasDerivedBottleMoles - initialGasDerivedBottleMoles) * MOL_TO_MMOL;
+
+    if (targetMinusInitialMmol <= 0) {
+      requiredDoseMixMoles = 0.0;
+      warnings.push("Target already reached. Gas to add is 0.");
+    } else {
+      requiredDoseMixMoles =
+        (targetMinusInitialMmol / MOL_TO_MMOL) / doseFraction;
+    }
+  } else {
+    requestedHeadspacePercent = Number(target_headspace_percent);
+    if (!Number.isFinite(requestedHeadspacePercent) ||
+        requestedHeadspacePercent < 0 || requestedHeadspacePercent >= 100) {
+      throw new Error("Target headspace concentration must be at least 0% and below 100%.");
+    }
+
+    requestedHeadspacePpmv = requestedHeadspacePercent * 10000.0;
+    const requestedFraction = requestedHeadspacePercent / 100.0;
+    const initialFraction = initialGasPercent / 100.0;
+
+    if (initialFraction >= requestedFraction) {
+      requiredDoseMixMoles = 0.0;
+      warnings.push("Target headspace concentration is already reached or exceeded. Gas to add is 0.");
+    } else if (requestedFraction === 0) {
+      requiredDoseMixMoles = 0.0;
+    } else {
+      // Let p_target / p_other = x_target / (1 - x_target). The target gas
+      // partitions between headspace and liquid, while the non-target fraction
+      // of the dosing mixture is assumed to remain in the headspace.
+      const targetToOtherPressureRatio =
+        requestedFraction / (1.0 - requestedFraction);
+      const equilibriumRatio =
+        gasDerivedCapacityMolPerPa *
+        targetToOtherPressureRatio *
+        pressurePerHeadspaceMolePa;
+
+      const denominator =
+        doseFraction - equilibriumRatio * (1.0 - doseFraction);
+      const numerator =
+        equilibriumRatio * initialNonTargetHeadspaceMoles -
+        initialGasDerivedBottleMoles;
+
+      if (!(denominator > 0)) {
+        throw new Error(
+          "The requested headspace concentration cannot be reached with this dosing mixture under the entered conditions. Increase the target-gas concentration of the dosing mixture."
+        );
+      }
+
+      requiredDoseMixMoles = numerator / denominator;
+
+      if (!(requiredDoseMixMoles >= 0) || !Number.isFinite(requiredDoseMixMoles)) {
+        throw new Error(
+          "The requested headspace concentration cannot be reached from the entered starting conditions by adding this dosing mixture."
+        );
+      }
+
+      targetMinusInitialMmol =
+        doseFraction * requiredDoseMixMoles * MOL_TO_MMOL;
+    }
+  }
+
+  const addedTargetGasMoles = doseFraction * requiredDoseMixMoles;
+  const addedNonTargetGasMoles = (1.0 - doseFraction) * requiredDoseMixMoles;
+  const finalTargetGasDerivedMoles =
+    initialGasDerivedBottleMoles + addedTargetGasMoles;
+  const finalNonTargetHeadspaceMoles =
+    initialNonTargetHeadspaceMoles + addedNonTargetGasMoles;
+
+  const finalPartialPressurePa =
+    finalTargetGasDerivedMoles / gasDerivedCapacityMolPerPa;
+  const finalNonTargetPressurePa =
+    finalNonTargetHeadspaceMoles * pressurePerHeadspaceMolePa;
+  const finalPressurePa = finalPartialPressurePa + finalNonTargetPressurePa;
+  const finalHeadspaceFraction = finalPressurePa > 0
+    ? finalPartialPressurePa / finalPressurePa
+    : 0.0;
+  const finalHeadspacePercent = finalHeadspaceFraction * 100.0;
+  const finalHeadspacePpmv = finalHeadspaceFraction * 1_000_000.0;
+
+  const finalMolecularConcentrationMolM3 =
+    henryConstant * finalPartialPressurePa;
+  const finalReactivePoolConcentrationMolM3 =
+    finalMolecularConcentrationMolM3 * reactiveFactor;
+  const finalHeadspaceMoles =
+    (finalPartialPressurePa * headspaceVolumeM3) /
+    (Z * R * temperatureK);
+  const finalMolecularDissolvedMoles =
+    finalMolecularConcentrationMolM3 * liquidVolumeM3;
+  const finalReactivePoolMoles =
+    finalReactivePoolConcentrationMolM3 * liquidVolumeM3;
+
+  const requiredDoseMixMmol = requiredDoseMixMoles * MOL_TO_MMOL;
+  const requiredTargetGasMmol = addedTargetGasMoles * MOL_TO_MMOL;
+  const dosePressurePa = dosePressureBarAbs * BAR_TO_PA;
   const doseVolumeM3 =
     requiredDoseMixMoles * Z * R * temperatureK / dosePressurePa;
   const doseVolumeMl = doseVolumeM3 / ML_TO_M3;
 
-  const warnings = [...initialState.warnings];
-  if (salinityResult.warning && !warnings.includes(salinityResult.warning)) {
-    warnings.push(salinityResult.warning);
-  }
-  if (targetMinusInitialMmol < 0) {
+  if (targetMode === "headspace" && ["CO2", "H2S"].includes(gasId) && !speciation) {
     warnings.push(
-      "Target already reached. Gas to add is 0."
+      `${gasId}: headspace-target dosing without pH includes molecular dissolution only; the pH-dependent dissolved pool is not included.`
     );
   }
 
   return {
     gas_id: gasId,
+    target_mode: targetMode,
     target_basis: targetBasis,
-    target_dissolved_umol_L: targetUmolL,
-    target_molecular_dissolved_mmol: targetMolecularDissolvedMmol,
-    target_dissolved_mmol: targetBasis === "total_pool"
-      ? targetReactivePoolMmol
-      : targetMolecularDissolvedMmol,
-    target_reactive_pool_mmol: targetReactivePoolMmol,
-    target_headspace_mmol: targetHeadspaceMmol,
-    target_total_bottle_mmol: targetGasDerivedBottleMmol,
+    target_dissolved_umol_L: targetDissolvedUmolL,
+    target_headspace_percent: requestedHeadspacePercent,
+    target_headspace_ppmv: requestedHeadspacePpmv,
+
     initial_total_bottle_mmol: initialGasDerivedBottleMmol,
     target_minus_initial_mmol: targetMinusInitialMmol,
     required_target_gas_mmol: requiredTargetGasMmol,
@@ -418,8 +537,45 @@ export function calculateRequiredGasAddition({
     required_dose_mix_mmol: requiredDoseMixMmol,
     dose_pressure_bar_abs: dosePressureBarAbs,
     required_dose_mix_volume_mL: doseVolumeMl,
-    required_partial_pressure_Pa: requiredPartialPressurePa,
-    required_partial_pressure_bar: requiredPartialPressurePa / BAR_TO_PA,
+
+    required_partial_pressure_Pa: requestedPartialPressurePa,
+    required_partial_pressure_bar: requestedPartialPressurePa === null
+      ? null
+      : requestedPartialPressurePa / BAR_TO_PA,
+
+    final_partial_pressure_Pa: finalPartialPressurePa,
+    final_partial_pressure_bar: finalPartialPressurePa / BAR_TO_PA,
+    final_pressure_bar_abs: finalPressurePa / BAR_TO_PA,
+    final_headspace_percent: finalHeadspacePercent,
+    final_headspace_ppmv: finalHeadspacePpmv,
+    final_headspace_mmol: finalHeadspaceMoles * MOL_TO_MMOL,
+    final_molecular_dissolved_umol_L:
+      finalMolecularConcentrationMolM3 * 1000.0,
+    final_molecular_dissolved_mmol:
+      finalMolecularDissolvedMoles * MOL_TO_MMOL,
+    final_reactive_pool_umol_L:
+      finalReactivePoolConcentrationMolM3 * 1000.0,
+    final_reactive_pool_mmol:
+      finalReactivePoolMoles * MOL_TO_MMOL,
+    final_total_gas_derived_mmol:
+      finalTargetGasDerivedMoles * MOL_TO_MMOL,
+
+    // Backward-compatible names used by the existing dissolved-target tests/UI.
+    target_molecular_dissolved_mmol:
+      finalMolecularDissolvedMoles * MOL_TO_MMOL,
+    target_dissolved_mmol: targetBasis === "total_pool"
+      ? finalReactivePoolMoles * MOL_TO_MMOL
+      : finalMolecularDissolvedMoles * MOL_TO_MMOL,
+    target_reactive_pool_mmol:
+      finalReactivePoolMoles * MOL_TO_MMOL,
+    target_headspace_mmol:
+      finalHeadspaceMoles * MOL_TO_MMOL,
+    target_total_bottle_mmol:
+      finalTargetGasDerivedMoles * MOL_TO_MMOL,
+
+    henry_temperature_corrected: henryConstant,
+    reactive_factor: reactiveFactor,
+    speciation,
     warnings
   };
 }

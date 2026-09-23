@@ -100,6 +100,27 @@ function optionalNumber(id) {
   return raw === "" ? null : Number(raw);
 }
 
+function gasConcentrationToPercent(value, unit) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue) || numericValue < 0) {
+    throw new Error("Gas concentration must be zero or larger.");
+  }
+
+  if (unit === "ppmv") {
+    return numericValue / 10000.0;
+  }
+  if (unit === "percent") {
+    return numericValue;
+  }
+
+  throw new Error("Unknown gas concentration unit.");
+}
+
+function formatHeadspaceConcentration(percent) {
+  const ppmv = Number(percent) * 10000.0;
+  return `${formatNumber(ppmv, 1)} ppmv (${formatNumber(percent, 4)}%)`;
+}
+
 function recordUsage() {
   const key = "egasboard_usage_count";
   const current = Number(localStorage.getItem(key) || "0");
@@ -201,14 +222,33 @@ function formatNumber(value, digits = 5) {
   return Number(value).toFixed(digits);
 }
 
+function activateTab(tabName, scrollToPanel = false) {
+  const button = document.querySelector(`.tab-button[data-tab="${tabName}"]`);
+  const panel = byId("tab-" + tabName);
+  if (!button || !panel) return;
+
+  document.querySelectorAll(".tab-button").forEach(item => item.classList.remove("active"));
+  document.querySelectorAll(".tab-panel").forEach(item => item.classList.remove("active"));
+
+  button.classList.add("active");
+  panel.classList.add("active");
+
+  if (scrollToPanel) {
+    panel.scrollIntoView({behavior: "smooth", block: "start"});
+  }
+}
+
 function setupTabs() {
   document.querySelectorAll(".tab-button").forEach(button => {
     button.addEventListener("click", () => {
-      document.querySelectorAll(".tab-button").forEach(item => item.classList.remove("active"));
-      document.querySelectorAll(".tab-panel").forEach(item => item.classList.remove("active"));
+      activateTab(button.dataset.tab, false);
+    });
+  });
 
-      button.classList.add("active");
-      byId("tab-" + button.dataset.tab).classList.add("active");
+  document.querySelectorAll("[data-open-tab]").forEach(link => {
+    link.addEventListener("click", event => {
+      event.preventDefault();
+      activateTab(link.dataset.openTab, true);
     });
   });
 }
@@ -267,23 +307,42 @@ async function calculateDose() {
   const status = byId("dose-status");
   clearStatus(status);
 
-  const payload = {
-    gas_id: byId("dose-gas").value,
-    target_dissolved_umol_l: numberValue("dose-target"),
-    target_basis: byId("dose-target-basis").value,
-    bottle_volume_ml: numberValue("dose-bottle"),
-    liquid_volume_ml: numberValue("dose-liquid"),
-    temperature_c: numberValue("dose-temperature"),
-    salinity_g_l_nacl: numberValue("dose-salinity"),
-    ph: optionalNumber("dose-ph"),
-    initial_gas_percent: numberValue("dose-initial-percent"),
-    initial_pressure_bar_abs: numberValue("dose-initial-pressure"),
-    dose_gas_percent: numberValue("dose-gas-percent"),
-    dose_pressure_bar_abs: numberValue("dose-pressure"),
-    compressibility_factor: 1.0
-  };
-
   try {
+    const targetMode = byId("dose-target-mode").value;
+    const targetUnit = byId("dose-target-unit").value;
+    const targetValue = numberValue("dose-target");
+
+    const payload = {
+      gas_id: byId("dose-gas").value,
+      target_mode: targetMode,
+      target_basis: byId("dose-target-basis").value,
+      bottle_volume_ml: numberValue("dose-bottle"),
+      liquid_volume_ml: numberValue("dose-liquid"),
+      temperature_c: numberValue("dose-temperature"),
+      salinity_g_l_nacl: numberValue("dose-salinity"),
+      ph: optionalNumber("dose-ph"),
+      initial_gas_percent: gasConcentrationToPercent(
+        numberValue("dose-initial-value"),
+        byId("dose-initial-unit").value
+      ),
+      initial_pressure_bar_abs: numberValue("dose-initial-pressure"),
+      dose_gas_percent: gasConcentrationToPercent(
+        numberValue("dose-gas-value"),
+        byId("dose-gas-unit").value
+      ),
+      dose_pressure_bar_abs: numberValue("dose-pressure"),
+      compressibility_factor: 1.0
+    };
+
+    if (targetMode === "dissolved") {
+      payload.target_dissolved_umol_l = targetValue;
+    } else {
+      payload.target_headspace_percent = gasConcentrationToPercent(
+        targetValue,
+        targetUnit
+      );
+    }
+
     const result = calculateRequiredGasAddition(payload);
     recordUsage();
     recordGasCalculations(1);
@@ -292,16 +351,42 @@ async function calculateDose() {
       "Gas dosing calculation"
     );
 
-    const targetLabel = result.target_basis === "total_pool"
-      ? (result.gas_id === "CO2" ? "Target dissolved inorganic carbon (DIC)" : "Target dissolved total sulfide")
-      : "Target molecular dissolved";
+    let html = "";
+    html += metric("Target gas to add", formatNumber(result.required_target_gas_mmol, 6) + " mmol");
+    html += metric("Dosing mixture to add", formatNumber(result.required_dose_mix_volume_mL, 3) + " mL");
+    html += metric(
+      "Equilibrated headspace",
+      formatHeadspaceConcentration(result.final_headspace_percent)
+    );
+    html += metric("Final headspace amount", formatNumber(result.final_headspace_mmol, 6) + " mmol");
+    html += metric("Final partial pressure", formatNumber(result.final_partial_pressure_bar, 6) + " bar");
+    html += metric("Estimated final pressure", formatNumber(result.final_pressure_bar_abs, 5) + " bar abs");
+    html += metric(
+      "Molecular dissolved concentration",
+      formatNumber(result.final_molecular_dissolved_umol_L, 3) + " µM"
+    );
+    html += metric(
+      "Molecular dissolved amount",
+      formatNumber(result.final_molecular_dissolved_mmol, 6) + " mmol"
+    );
 
-    byId("dose-results").innerHTML =
-      metric("Gas to add", formatNumber(result.required_target_gas_mmol, 6) + " mmol") +
-      metric("Dosing mixture", formatNumber(result.required_dose_mix_volume_mL, 3) + " mL") +
-      metric("Target headspace", formatNumber(result.target_headspace_mmol, 6) + " mmol") +
-      metric(targetLabel, formatNumber(result.target_dissolved_mmol, 6) + " mmol") +
-      metric("Required partial pressure", formatNumber(result.required_partial_pressure_bar, 4) + " bar");
+    if (result.gas_id === "CO2" && result.speciation) {
+      html += metric(
+        "Estimated dissolved inorganic carbon (DIC)",
+        formatNumber(result.final_reactive_pool_umol_L, 3) + " µM (" +
+        formatNumber(result.final_reactive_pool_mmol, 6) + " mmol)"
+      );
+    }
+
+    if (result.gas_id === "H2S" && result.speciation) {
+      html += metric(
+        "Estimated dissolved total sulfide",
+        formatNumber(result.final_reactive_pool_umol_L, 3) + " µM (" +
+        formatNumber(result.final_reactive_pool_mmol, 6) + " mmol)"
+      );
+    }
+
+    byId("dose-results").innerHTML = html;
 
     if (result.warnings && result.warnings.length) {
       showStatus(status, "warning", result.warnings.join("<br>"));
@@ -1043,16 +1128,31 @@ async function downloadBatchResults() {
 }
 
 
-function updateDoseTargetBasis() {
+function updateDoseControls() {
   const gas = byId("dose-gas").value;
-  const field = byId("dose-target-basis-label");
-  const select = byId("dose-target-basis");
+  const targetMode = byId("dose-target-mode").value;
+  const targetUnit = byId("dose-target-unit");
+  const targetBasisField = byId("dose-target-basis-label");
+  const targetBasis = byId("dose-target-basis");
+  const targetLabelText = byId("dose-target-label-text");
   const reactive = gas === "CO2" || gas === "H2S";
 
-  field.style.display = reactive ? "flex" : "none";
-  if (!reactive) select.value = "molecular";
+  if (targetMode === "dissolved") {
+    targetLabelText.textContent = "Target dissolved concentration";
+    targetUnit.innerHTML = '<option value="umol_L">µM</option>';
+    targetBasisField.style.display = reactive ? "flex" : "none";
+    if (!reactive) targetBasis.value = "molecular";
+  } else {
+    targetLabelText.textContent = "Target equilibrated headspace";
+    targetUnit.innerHTML = [
+      '<option value="ppmv">ppmv</option>',
+      '<option value="percent">%</option>'
+    ].join("");
+    targetBasisField.style.display = "none";
+    targetBasis.value = "molecular";
+  }
 
-  const poolOption = select.querySelector('option[value="total_pool"]');
+  const poolOption = targetBasis.querySelector('option[value="total_pool"]');
   if (poolOption) {
     poolOption.textContent = gas === "CO2"
       ? "Estimated dissolved inorganic carbon (DIC)"
@@ -1073,11 +1173,12 @@ async function initialize() {
 
   populateGasSelect(byId("single-gas"), "CO");
   populateGasSelect(byId("dose-gas"), "O2");
-  updateDoseTargetBasis();
+  updateDoseControls();
 
   byId("single-calculate").addEventListener("click", calculateSingle);
   byId("dose-calculate").addEventListener("click", calculateDose);
-  byId("dose-gas").addEventListener("change", updateDoseTargetBasis);
+  byId("dose-gas").addEventListener("change", updateDoseControls);
+  byId("dose-target-mode").addEventListener("change", updateDoseControls);
   byId("batch-calculate").addEventListener("click", calculateBatch);
   byId("download-results").addEventListener("click", downloadBatchResults);
   byId("output-format").addEventListener("change", updateOutputControls);
