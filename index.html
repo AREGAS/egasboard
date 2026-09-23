@@ -38,14 +38,12 @@
   <main class="shell">
     <section class="intro">
       <p>
-        A microcosm or closed incubation is a sealed bottle with known liquid and gas
-        headspace volumes. Because gases partition between both phases, the headspace
-        gas percentage alone does not give the total amount in the bottle.
+        <strong>(E)Gasboard converts GC peak areas or measured headspace gas concentrations into gas amounts in closed bottles.</strong>
+        It accounts for headspace and liquid volumes, pressure, temperature and gas solubility, with optional salinity and pH-dependent CO₂/H₂S speciation.
       </p>
       <p>
-        Here, GC peak areas or measured gas percentages are converted to gas amounts
-        using calibration, pressure, temperature, bottle volumes and gas solubility.
-        pH can be included for CO₂ and H₂S speciation. NaCl-equivalent concentration is optional.
+        Use Batch analysis for time series, Single calculation for one bottle, or Gas dosing to calculate how much gas to add.
+        <a href="#tab-methods" class="inline-tool-link" data-open-tab="methods">See how the calculations work →</a>
       </p>
     </section>
 
@@ -62,8 +60,8 @@
         <div>
           <strong>From a target concentration to a gas dose</strong>
           <p>
-            Example: calculate how much O₂ to add to reach 150 µM dissolved O₂ at the
-            entered bottle conditions.
+            Example: calculate how much O₂ to add to reach 150 µM dissolved O₂, or
+            how much gas is needed to reach 500 ppmv in the equilibrated headspace.
           </p>
         </div>
       </div>
@@ -73,7 +71,7 @@
       <button class="tab-button active" data-tab="batch">Batch analysis</button>
       <button class="tab-button" data-tab="single">Single calculation</button>
       <button class="tab-button" data-tab="dose">Gas dosing</button>
-      <button class="tab-button" data-tab="methods">Calculations</button>
+      <button class="tab-button" data-tab="methods">How it works</button>
       <button class="tab-button" data-tab="about">Metrics & citation</button>
     </nav>
 
@@ -376,8 +374,8 @@
       <h2>Gas dosing</h2>
 
       <p class="lead">
-        Calculate the amount of gas required to reach a target dissolved concentration
-        after gas-liquid equilibration. NaCl-equivalent concentration is optional.
+        Calculate how much gas to add for either a dissolved target or an equilibrated
+        headspace target. Headspace concentrations can be entered as % or ppmv.
       </p>
 
       <div class="form-grid">
@@ -387,8 +385,23 @@
         </label>
 
         <label>
-          Target dissolved concentration (µM)
-          <input id="dose-target" type="number" value="150" step="1">
+          Target type
+          <select id="dose-target-mode">
+            <option value="dissolved">Dissolved concentration</option>
+            <option value="headspace">Equilibrated headspace concentration</option>
+          </select>
+        </label>
+
+        <label>
+          <span id="dose-target-label-text">Target dissolved concentration</span>
+          <input id="dose-target" type="number" value="150" step="any">
+        </label>
+
+        <label>
+          Target unit
+          <select id="dose-target-unit">
+            <option value="umol_L">µM</option>
+          </select>
         </label>
 
         <label id="dose-target-basis-label">
@@ -420,8 +433,16 @@
         </label>
 
         <label>
-          Initial gas in headspace (%)
-          <input id="dose-initial-percent" type="number" value="0" step="0.01">
+          Initial gas in headspace
+          <input id="dose-initial-value" type="number" value="0" step="any">
+        </label>
+
+        <label>
+          Initial gas unit
+          <select id="dose-initial-unit">
+            <option value="percent">%</option>
+            <option value="ppmv">ppmv</option>
+          </select>
         </label>
 
         <label>
@@ -430,8 +451,16 @@
         </label>
 
         <label>
-          Dosing gas (%)
-          <input id="dose-gas-percent" type="number" value="100" step="0.1">
+          Target gas in dosing mixture
+          <input id="dose-gas-value" type="number" value="100" step="any">
+        </label>
+
+        <label>
+          Dosing-mixture unit
+          <select id="dose-gas-unit">
+            <option value="percent">%</option>
+            <option value="ppmv">ppmv</option>
+          </select>
         </label>
 
         <label>
@@ -454,12 +483,11 @@
     </section>
 
     <section id="tab-methods" class="tab-panel prose methods-page">
-      <h2>Calculations</h2>
+      <h2>How (E)Gasboard works</h2>
 
       <p>
-        This page describes how a GC response or measured headspace gas percentage is
-        converted into a gas amount for the complete bottle. The same equations are used
-        for single calculations, batch analysis and gas dosing.
+        This page shows the equations and assumptions behind Batch analysis, Single calculation
+        and Gas dosing. The calculations are kept visible so results can be checked and reproduced.
       </p>
 
       <p><em>Res ipsa loquitur.</em></p>
@@ -1154,13 +1182,59 @@
         <h3>Gas dosing</h3>
 
         <p>
-          The target dissolved concentration is converted back to the required gas partial pressure.
-          For CO₂ and H₂S, the target can mean molecular dissolved gas or the estimated total dissolved pool.
-          pH is required for DIC or dissolved total sulfide targets.
+          Gas dosing can start from either a dissolved target or an equilibrated headspace target.
+          A dissolved target is converted to the partial pressure required by Henry's law. For CO₂
+          and H₂S, the target can refer to the molecular dissolved gas or the estimated total dissolved
+          pool; pH is required for DIC or dissolved total sulfide targets.
         </p>
 
         <p>
-          If the target is already reached, gas to add is reported as 0.
+          For a headspace target, the entered % or ppmv is converted to a target mole fraction.
+          (E)Gasboard then solves the gas-liquid mass balance so that, after equilibration, the selected
+          gas reaches that fraction of the final headspace pressure. The calculation accounts for gas
+          dissolving into the liquid and for the pressure change caused by the added dosing mixture.
+        </p>
+
+        <div class="equation math-display">
+          <math display="block">
+            <msub><mi>p</mi><mi>i</mi></msub>
+            <mo>=</mo>
+            <msub><mi>y</mi><mtext>target</mtext></msub>
+            <msub><mi>P</mi><mtext>final</mtext></msub>
+          </math>
+        </div>
+
+        <p>
+          The non-target part of the dosing mixture is assumed to remain in the headspace and not
+          significantly dissolve or react. If the selected dosing mixture cannot reach the requested
+          headspace concentration, the calculation returns an error instead of extrapolating.
+        </p>
+
+        <p>
+          If the target is already reached or exceeded, gas to add is reported as 0.
+        </p>
+      </div>
+
+      <div class="method-step">
+        <h3>Gas-phase concentration units: % and ppmv</h3>
+
+        <p>
+          <strong>ppmv</strong> means parts per million by volume. For the ideal gas mixtures used here,
+          volume fraction and mole fraction are equivalent. (E)Gasboard therefore converts % and ppmv
+          directly for headspace concentrations and dosing mixtures.
+        </p>
+
+        <div class="equation math-display">
+          <math display="block">
+            <mn>1</mn><mo>%</mo>
+            <mo>=</mo>
+            <mn>10000</mn><mtext> ppmv</mtext>
+          </math>
+        </div>
+
+        <p>
+          Therefore 500 ppmv = 0.05%, 1000 ppmv = 0.1%, and 10000 ppmv = 1%.
+          ppmv is a gas-phase composition unit; it is not a mass-based ppm concentration.
         </p>
       </div>
 

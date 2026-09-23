@@ -2,6 +2,11 @@
 
 ## v0.1 - post-release updates
 
+- Extended Gas dosing with equilibrated headspace targets in `%` or `ppmv`, while retaining dissolved concentration targets.
+- Added `%`/`ppmv` conversion for initial headspace composition and dosing-mixture composition.
+- Added final headspace concentration, final pressure and dissolved equilibrium outputs to Gas dosing.
+- Renamed the Calculations tab to **How it works**, added a direct link from the landing text, and shortened the landing-page description.
+- Added a short `%` versus `ppmv` nomenclature section to the calculation documentation.
 - Added optional `liquid_sample_mL` and `headspace_sample_mL` columns for longitudinal sampling-loss correction.
 - Added cumulative sampled amount and sampling-corrected bottle inventory while preserving the original measured bottle amount.
 - Added pH-dependent sampling-corrected inorganic-carbon output for CO2 and total-sulfide output for H2S.

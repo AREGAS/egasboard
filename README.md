@@ -44,7 +44,7 @@ This GitHub repository is primarily provided for **transparency, reproducibility
 - calculates total bottle gas amount;
 - optionally corrects longitudinal batch data for gas and liquid removed during repeated sampling;
 - keeps the measured bottle inventory and sampling-corrected inventory as separate outputs;
-- calculates gas additions required to reach a target dissolved concentration;
+- calculates gas additions required to reach either a dissolved target or an equilibrated headspace target (% or ppmv);
 - accepts `.xlsx`, `.csv` and `.tsv` batch input;
 - produces interactive calibration and time-series plots in the browser;
 - exports formatted Excel results and simpler CSV/TSV results.
@@ -144,7 +144,7 @@ and opened at `http://localhost:8000`. This is not required to use (E)Gasboard; 
 - optional sampling volumes are removed after the measurement on their row;
 - sampling-corrected values are mass-balance inventories, not predictions of the exact concentration in an unsampled bottle.
 
-Detailed equations and assumptions are available in the **Calculations** tab and under `docs/`.
+Detailed equations and assumptions are available in the **How it works** tab and under `docs/`.
 
 ## Analytics
 

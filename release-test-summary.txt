@@ -2,11 +2,15 @@
 
 JavaScript syntax: passed
 JavaScript scientific parity tests: passed
-Python reference tests: 24 passed
+Python reference tests: 26 passed
 HTML structure/content sanity check: passed
 Measurement template/example XLSX checks: passed
 Sampling-loss correction timing: tested
 CO2 molecular vs DIC sampling correction: tested
+Gas dosing dissolved targets: tested
+Gas dosing equilibrated headspace targets: tested
+ppmv/% headspace conversion: tested
+Unreachable dilute dosing-mixture target: tested
 Result download basename: EGasboard_results_v0.1
 Calibration files: unchanged
 License: GPL-3.0-or-later

@@ -904,3 +904,12 @@ select {
   grid-column: 1 / -1;
   margin-top: 0;
 }
+
+.inline-tool-link {
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.tab-panel {
+  scroll-margin-top: 18px;
+}
