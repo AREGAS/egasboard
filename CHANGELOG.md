@@ -93,3 +93,12 @@ Streamlit v0.3 was used for workflow development and colleague testing.
 - GoatCounter-ready analytics hooks
 - local tool-use and gas-calculation counters
 - corrected Excel template compatibility
+
+### UI cleanup: dosing, rate/mass transfer and How it works
+
+- regrouped Gas dosing inputs into clearer rows and shortened dosing labels;
+- simplified Rate & mass transfer labels, controls and action buttons;
+- replaced the two mass-transfer plots with one rate-vs-required-kLa plot;
+- added an explanation below the plot and improved dark-mode chart contrast;
+- moved the rate/mass-transfer equations into the same equation boxes used elsewhere;
+- reduced the visible mass-transfer reference list to the core sources used for the screening model.

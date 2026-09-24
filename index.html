@@ -396,100 +396,120 @@
         headspace target. Headspace concentrations can be entered as % or ppmv.
       </p>
 
-      <div class="form-grid">
-        <label>
-          Gas
-          <select id="dose-gas"></select>
-        </label>
+      <div class="dose-form">
+        <div class="dose-section">
+          <div class="dose-section-title">Target</div>
+          <div class="form-grid dose-grid dose-grid-5">
+            <label>
+              Gas
+              <select id="dose-gas"></select>
+            </label>
 
-        <label>
-          Target type
-          <select id="dose-target-mode">
-            <option value="dissolved">Dissolved concentration</option>
-            <option value="headspace">Equilibrated headspace concentration</option>
-          </select>
-        </label>
+            <label>
+              Target type
+              <select id="dose-target-mode">
+                <option value="dissolved">Dissolved concentration</option>
+                <option value="headspace">Equilibrated headspace concentration</option>
+              </select>
+            </label>
 
-        <label>
-          <span id="dose-target-label-text">Target dissolved concentration</span>
-          <input id="dose-target" type="number" value="150" step="any">
-        </label>
+            <label>
+              <span id="dose-target-label-text">Target dissolved concentration</span>
+              <input id="dose-target" type="number" value="150" step="any">
+            </label>
 
-        <label>
-          Target unit
-          <select id="dose-target-unit">
-            <option value="umol_L">µM</option>
-          </select>
-        </label>
+            <label>
+              Unit
+              <select id="dose-target-unit">
+                <option value="umol_L">µM</option>
+              </select>
+            </label>
 
-        <label id="dose-target-basis-label">
-          Target refers to
-          <select id="dose-target-basis">
-            <option value="molecular">Molecular dissolved gas</option>
-            <option value="total_pool">Estimated total pool</option>
-          </select>
-        </label>
+            <label id="dose-target-basis-label">
+              Target refers to
+              <select id="dose-target-basis">
+                <option value="molecular">Molecular dissolved gas</option>
+                <option value="total_pool">Estimated total pool</option>
+              </select>
+            </label>
+          </div>
+        </div>
 
-        <label>
-          Bottle volume (mL)
-          <input id="dose-bottle" type="number" value="120" step="0.1">
-        </label>
+        <div class="dose-section">
+          <div class="dose-section-title">Bottle details</div>
+          <div class="form-grid dose-grid dose-grid-5">
+            <label>
+              Bottle volume (mL)
+              <input id="dose-bottle" type="number" value="120" step="0.1">
+            </label>
 
-        <label>
-          Liquid volume (mL)
-          <input id="dose-liquid" type="number" value="100" step="0.1">
-        </label>
+            <label>
+              Liquid volume (mL)
+              <input id="dose-liquid" type="number" value="100" step="0.1">
+            </label>
 
-        <label>
-          Temperature (°C)
-          <input id="dose-temperature" type="number" value="25" step="0.1">
-        </label>
+            <label>
+              Temperature (°C)
+              <input id="dose-temperature" type="number" value="25" step="0.1">
+            </label>
 
-        <label>
-          NaCl-equivalent (g/L)
-          <input id="dose-salinity" type="number" value="33" step="0.1">
-        </label>
+            <label>
+              pH (optional)
+              <input id="dose-ph" type="number" placeholder="optional" step="0.01">
+            </label>
 
-        <label>
-          Initial gas in headspace
-          <input id="dose-initial-value" type="number" value="0" step="any">
-        </label>
+            <label>
+              NaCl-equivalent (g/L)
+              <input id="dose-salinity" type="number" value="33" step="0.1">
+            </label>
+          </div>
+        </div>
 
-        <label>
-          Initial gas unit
-          <select id="dose-initial-unit">
-            <option value="percent">%</option>
-            <option value="ppmv">ppmv</option>
-          </select>
-        </label>
+        <div class="dose-section">
+          <div class="dose-section-title">Starting headspace</div>
+          <div class="form-grid dose-grid dose-grid-3">
+            <label>
+              Initial gas concentration
+              <input id="dose-initial-value" type="number" value="0" step="any">
+            </label>
 
-        <label>
-          Initial pressure (bar abs)
-          <input id="dose-initial-pressure" type="number" value="1.01325" step="0.001">
-        </label>
+            <label>
+              Unit
+              <select id="dose-initial-unit">
+                <option value="percent">%</option>
+                <option value="ppmv">ppmv</option>
+              </select>
+            </label>
 
-        <label>
-          Target gas in dosing mixture
-          <input id="dose-gas-value" type="number" value="100" step="any">
-        </label>
+            <label>
+              Initial pressure (bar abs)
+              <input id="dose-initial-pressure" type="number" value="1.01325" step="0.001">
+            </label>
+          </div>
+        </div>
 
-        <label>
-          Dosing-mixture unit
-          <select id="dose-gas-unit">
-            <option value="percent">%</option>
-            <option value="ppmv">ppmv</option>
-          </select>
-        </label>
+        <div class="dose-section">
+          <div class="dose-section-title">Dosing mixture</div>
+          <div class="form-grid dose-grid dose-grid-3">
+            <label>
+              Gas concentration
+              <input id="dose-gas-value" type="number" value="100" step="any">
+            </label>
 
-        <label>
-          Dosing pressure (bar abs)
-          <input id="dose-pressure" type="number" value="1.01325" step="0.001">
-        </label>
+            <label>
+              Unit
+              <select id="dose-gas-unit">
+                <option value="percent">%</option>
+                <option value="ppmv">ppmv</option>
+              </select>
+            </label>
 
-        <label>
-          pH, optional
-          <input id="dose-ph" type="number" placeholder="optional" step="0.01">
-        </label>
+            <label>
+              Pressure (bar abs)
+              <input id="dose-pressure" type="number" value="1.01325" step="0.001">
+            </label>
+          </div>
+        </div>
       </div>
 
       <button id="dose-calculate" class="primary-button">
@@ -504,15 +524,15 @@
       <h2>Rate &amp; mass transfer</h2>
 
       <p class="lead">
-        Fit a rate from a Batch time series or enter one manually. Mass-transfer screening is optional,
-        and Explore mode lets you change bottle conditions and k<sub>L</sub>a assumptions interactively.
+        Fit a time-series rate or enter one manually. Optionally check whether gas transfer can support that rate.
+        Explore mode updates the prediction live as you change the bottle conditions.
       </p>
 
-      <div class="form-grid compact-form-grid">
+      <div class="form-grid compact-form-grid transfer-top-controls">
         <label>
           Mode
           <select id="transfer-mode">
-            <option value="analyze">Analyze measured rate</option>
+            <option value="analyze">Analyze rate</option>
             <option value="explore">Explore &amp; predict</option>
           </select>
         </label>
@@ -520,14 +540,14 @@
         <label id="transfer-rate-source-label">
           Rate source
           <select id="transfer-rate-source">
-            <option value="manual">Enter rate manually</option>
-            <option value="batch" disabled>Fit from Batch time series</option>
+            <option value="manual">Manual rate</option>
+            <option value="batch" disabled>Batch time series</option>
           </select>
         </label>
 
         <label id="transfer-enable-mass-label" class="plot-checkbox transfer-checkbox">
           <input id="transfer-enable-mass" type="checkbox" checked>
-          <span>Assess gas-transfer limitation</span>
+          <span>Mass-transfer screen</span>
         </label>
       </div>
 
@@ -553,22 +573,20 @@
             <select id="transfer-rate-basis"></select>
           </label>
           <label>
-            Start time
+            Start
             <select id="transfer-time-start"></select>
           </label>
           <label>
-            End time
+            End
             <select id="transfer-time-end"></select>
           </label>
         </div>
-        <p class="example-note">
-          A linear regression is fitted across the selected interval. Negative slopes are gas uptake; positive slopes are gas production.
-        </p>
+        <p class="example-note">Linear fit over the selected interval. Negative slope = uptake; positive slope = production.</p>
         <div id="transfer-rate-fit-results" class="metric-grid"></div>
       </div>
 
       <div id="transfer-manual-rate-controls" class="analysis-card">
-        <h3>Rate to compare</h3>
+        <h3>Rate</h3>
         <div class="form-grid">
           <label>
             Gas
@@ -579,7 +597,7 @@
             <input id="transfer-rate" type="number" value="0.20" step="any" min="0">
           </label>
           <label>
-            Rate unit
+            Unit
             <select id="transfer-rate-unit">
               <option value="mmol_d">mmol/day</option>
               <option value="umol_d">µmol/day</option>
@@ -591,7 +609,7 @@
       </div>
 
       <div class="analysis-card">
-        <h3>Bottle &amp; gas-transfer assumptions</h3>
+        <h3>Bottle &amp; transfer settings</h3>
         <div class="form-grid">
           <label>
             Liquid volume (mL)
@@ -602,48 +620,48 @@
             <input id="transfer-temperature" type="number" value="30" step="0.1">
           </label>
           <label>
-            Absolute pressure (bar)
+            Pressure (bar abs)
             <input id="transfer-pressure" type="number" value="1.01325" step="0.001" min="0">
           </label>
           <label>
-            Headspace gas concentration
+            Headspace gas
             <input id="transfer-gas-value" type="number" value="10" step="any" min="0">
           </label>
           <label>
-            Headspace unit
+            Unit
             <select id="transfer-gas-unit">
               <option value="percent">%</option>
               <option value="ppmv">ppmv</option>
             </select>
           </label>
           <label>
-            NaCl-equivalent (g/L)
+            NaCl eq. (g/L)
             <input id="transfer-salinity" type="number" value="0" step="0.1" min="0">
           </label>
           <label>
-            Henry constant
+            Henry Hcp
             <select id="transfer-henry-source">
-              <option value="default">Built-in literature value</option>
+              <option value="default">Built-in value</option>
               <option value="custom">Custom Hcp / B</option>
             </select>
           </label>
           <label id="transfer-custom-hcp-label" class="hidden">
-            Custom Hcp at 25 °C (mol m<sup>−3</sup> Pa<sup>−1</sup>)
+            Hcp at 25 °C
             <input id="transfer-custom-hcp" type="number" step="any" min="0">
           </label>
           <label id="transfer-custom-henry-b-label" class="hidden">
-            Custom Henry B (K)
+            Henry B (K)
             <input id="transfer-custom-henry-b" type="number" step="any">
           </label>
           <label>
-            k<sub>L</sub>a source
+            kLa source
             <select id="transfer-kla-source">
-              <option value="estimate">Rough vessel × rpm estimate</option>
-              <option value="custom">Custom / measured / literature kLa</option>
+              <option value="estimate">Vessel × rpm estimate</option>
+              <option value="custom">Custom kLa</option>
             </select>
           </label>
           <label id="transfer-vessel-label">
-            Vessel class
+            Vessel
             <select id="transfer-vessel">
               <option value="tube">Tube (10-20 mL)</option>
               <option value="flask">Flask (20-120 mL)</option>
@@ -652,7 +670,7 @@
             </select>
           </label>
           <label id="transfer-rpm-label">
-            Shaking speed
+            Shaking
             <select id="transfer-rpm">
               <option value="100">100 rpm</option>
               <option value="150">150 rpm</option>
@@ -661,36 +679,30 @@
             </select>
           </label>
           <label id="transfer-custom-kla-label" class="hidden">
-            Custom k<sub>L</sub>a (h<sup>−1</sup>)
+            Custom kLa (h<sup>−1</sup>)
             <input id="transfer-custom-kla" type="number" value="10" step="any" min="0">
           </label>
         </div>
 
         <p id="transfer-henry-preview" class="example-note"></p>
         <p id="transfer-kla-preview" class="example-note"></p>
-        <p class="example-note">
-          <strong>Screening estimate only.</strong> Built-in k<sub>L</sub>a values are literature-based estimates for comparable shaken batch systems.
-          Use a measured or more representative value whenever available.
-        </p>
+        <p class="example-note"><strong>Estimate only.</strong> Built-in kLa values are rough literature-based screening values. Replace them when you have a better value.</p>
       </div>
 
-      <div class="button-row">
-        <button id="transfer-calculate" class="primary-button">Calculate rate / assess transfer</button>
-        <button id="transfer-save-scenario" class="secondary-button hidden">Save current scenario to exports</button>
-        <button id="transfer-download-analysis" class="secondary-button" disabled>Download current analysis CSV</button>
+      <div class="button-row transfer-actions">
+        <button id="transfer-calculate" class="primary-button">Calculate</button>
+        <button id="transfer-save-scenario" class="secondary-button hidden">Save scenario</button>
+        <button id="transfer-download-analysis" class="secondary-button" disabled>Download CSV</button>
       </div>
 
       <div id="transfer-status" class="status hidden"></div>
       <div id="transfer-results" class="metric-grid"></div>
 
       <div id="transfer-prediction-plots" class="transfer-plot-grid hidden">
-        <div class="plot-card">
-          <h3>Transfer capacity vs k<sub>L</sub>a</h3>
-          <svg id="transfer-kla-chart" viewBox="0 0 900 430" role="img" aria-label="Transfer capacity versus kLa"></svg>
-        </div>
-        <div class="plot-card">
-          <h3>Transfer capacity vs headspace concentration</h3>
-          <svg id="transfer-gas-chart" viewBox="0 0 900 430" role="img" aria-label="Transfer capacity versus headspace gas concentration"></svg>
+        <div class="plot-card transfer-plot-single">
+          <h3>Rate vs required kLa</h3>
+          <svg id="transfer-kla-chart" viewBox="0 0 900 470" role="img" aria-label="Required kLa versus gas uptake rate"></svg>
+          <p id="transfer-plot-explanation" class="plot-explanation"></p>
         </div>
       </div>
     </section>
@@ -1406,150 +1418,108 @@
       <div class="method-step">
         <h3>Rate &amp; gas-liquid mass transfer</h3>
 
-      <p>
-        For Batch time series, (E)Gasboard can fit a straight line to a selected interval.
-        The slope is reported as a signed rate: negative for gas uptake and positive for gas production.
-      </p>
-
-      <math display="block">
-        <mrow>
-          <mi>n</mi><mo>(</mo><mi>t</mi><mo>)</mo><mo>=</mo><mi>m</mi><mi>t</mi><mo>+</mo><mi>b</mi>
-        </mrow>
-      </math>
-
-      <p>
-        The mass-transfer screen compares an observed <strong>gas uptake</strong> rate with the maximum
-        gas-liquid transfer capacity implied by k<sub>L</sub>a and the current headspace conditions.
-        It is a screening calculation, not a substitute for measuring k<sub>L</sub>a.
-      </p>
-
-      <p>The equilibrium molecular dissolved concentration is:</p>
-
-      <math display="block">
-        <mrow>
-          <msup><mi>C</mi><mo>*</mo></msup>
-          <mo>=</mo>
-          <msubsup><mi>H</mi><mi>s</mi><mi>cp</mi></msubsup>
-          <msub><mi>p</mi><mi>i</mi></msub>
-        </mrow>
-      </math>
-
-      <p>For gas uptake, the maximum transfer capacity occurs when the bulk dissolved concentration approaches zero:</p>
-
-      <math display="block">
-        <mrow>
-          <msub><mi>MTR</mi><mi>max</mi></msub>
-          <mo>=</mo>
-          <msub><mi>k</mi><mi>L</mi></msub><mi>a</mi>
-          <msub><mi>V</mi><mi>L</mi></msub>
-          <msup><mi>C</mi><mo>*</mo></msup>
-        </mrow>
-      </math>
-
-      <p>The transfer-demand ratio is:</p>
-
-      <math display="block">
-        <mrow>
-          <mi>D</mi>
-          <mo>=</mo>
-          <mfrac>
-            <msub><mi>r</mi><mi>uptake</mi></msub>
-            <msub><mi>MTR</mi><mi>max</mi></msub>
-          </mfrac>
-        </mrow>
-      </math>
-
-      <p>
-        D = 1 means the observed uptake would require the bulk dissolved concentration to approach zero.
-        D &gt; 1 means the observed uptake exceeds the calculated maximum transfer capacity for the entered k<sub>L</sub>a.
-        (E)Gasboard reports this as a transfer-capacity inconsistency rather than treating it as a biological rate error.
-      </p>
-
-      <p>The minimum k<sub>L</sub>a required even at C<sub>L</sub> = 0 is:</p>
-
-      <math display="block">
-        <mrow>
-          <msub><mi>k</mi><mi>L</mi></msub><mi>a</mi>
-          <mo>=</mo>
-          <mfrac>
-            <msub><mi>r</mi><mi>uptake</mi></msub>
-            <mrow><msub><mi>V</mi><mi>L</mi></msub><msup><mi>C</mi><mo>*</mo></msup></mrow>
-          </mfrac>
-        </mrow>
-      </math>
-
-      <p>
-        Explore mode uses the same equations interactively. Changing gas concentration, pressure, liquid volume,
-        H<sup>cp</sup> or k<sub>L</sub>a updates the maximum supportable uptake rate and the minimum k<sub>L</sub>a required for the selected rate.
-      </p>
-
-      <h4>Rough k<sub>L</sub>a screening values</h4>
-
-      <p>
-        When no measured k<sub>L</sub>a is available, the tool can use the central screening values below.
-        They intentionally represent broad vessel classes, not a universal correlation. A ±50% range is shown
-        around each central value. The 400 rpm column is a high-speed extrapolation and is more uncertain.
-      </p>
-
-      <div class="table-wrap compact-table">
-        <table>
-          <thead>
-            <tr>
-              <th>Vessel / typical working-volume class</th>
-              <th>100 rpm</th>
-              <th>150 rpm</th>
-              <th>200 rpm</th>
-              <th>400 rpm*</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr><td>Tube (10-20 mL)</td><td>8</td><td>15</td><td>30</td><td>80</td></tr>
-            <tr><td>Flask (20-120 mL)</td><td>4</td><td>12</td><td>20</td><td>60</td></tr>
-            <tr><td>Small bottle (120-500 mL)</td><td>5</td><td>10</td><td>15</td><td>40</td></tr>
-            <tr><td>Large bottle (0.5-2 L)</td><td>2</td><td>5</td><td>8</td><td>25</td></tr>
-          </tbody>
-        </table>
-      </div>
-
-      <p class="muted">
-        Values are k<sub>L</sub>a in h<sup>−1</sup>. They are deliberately conservative screening estimates
-        assembled from published shaken-vessel oxygen-transfer ranges; they are not direct look-up constants.
-        Literature shows strong effects of fill volume, vessel geometry, shaking diameter, baffling and medium properties.
-      </p>
-
-      <h3>Gas dosing</h3>
-
         <p>
-          Gas dosing can start from either a dissolved target or an equilibrated headspace target.
-          A dissolved target is converted to the partial pressure required by Henry's law. For CO₂
-          and H₂S, the target can refer to the molecular dissolved gas or the estimated total dissolved
-          pool; pH is required for DIC or dissolved total sulfide targets.
-        </p>
-
-        <p>
-          For a headspace target, the entered % or ppmv is converted to a target mole fraction.
-          (E)Gasboard then solves the gas-liquid mass balance so that, after equilibration, the selected
-          gas reaches that fraction of the final headspace pressure. The calculation accounts for gas
-          dissolving into the liquid and for the pressure change caused by the added dosing mixture.
+          A straight line can be fitted to a selected Batch interval. Negative slopes are gas uptake; positive slopes are gas production.
         </p>
 
         <div class="equation math-display">
           <math display="block">
-            <msub><mi>p</mi><mi>i</mi></msub>
-            <mo>=</mo>
-            <msub><mi>y</mi><mtext>target</mtext></msub>
-            <msub><mi>P</mi><mtext>final</mtext></msub>
+            <mrow><mi>n</mi><mo>(</mo><mi>t</mi><mo>)</mo><mo>=</mo><mi>m</mi><mi>t</mi><mo>+</mo><mi>b</mi></mrow>
+          </math>
+        </div>
+
+        <p>For uptake, the equilibrium dissolved concentration is:</p>
+
+        <div class="equation math-display">
+          <math display="block">
+            <mrow>
+              <msup><mi>C</mi><mo>*</mo></msup><mo>=</mo>
+              <msubsup><mi>H</mi><mi>s</mi><mi>cp</mi></msubsup><msub><mi>p</mi><mi>i</mi></msub>
+            </mrow>
+          </math>
+        </div>
+
+        <p>The maximum transfer capacity assumes the bulk dissolved concentration approaches zero:</p>
+
+        <div class="equation math-display">
+          <math display="block">
+            <mrow>
+              <msub><mi>MTR</mi><mi>max</mi></msub><mo>=</mo>
+              <msub><mi>k</mi><mi>L</mi></msub><mi>a</mi>
+              <msub><mi>V</mi><mi>L</mi></msub><msup><mi>C</mi><mo>*</mo></msup>
+            </mrow>
+          </math>
+        </div>
+
+        <p>Transfer demand and the minimum kLa required for the observed uptake are:</p>
+
+        <div class="equation math-display equation-pair">
+          <math display="block">
+            <mrow>
+              <mi>D</mi><mo>=</mo>
+              <mfrac><msub><mi>r</mi><mi>uptake</mi></msub><msub><mi>MTR</mi><mi>max</mi></msub></mfrac>
+            </mrow>
+          </math>
+          <math display="block">
+            <mrow>
+              <msub><mi>k</mi><mi>L</mi></msub><mi>a</mi><mo>=</mo>
+              <mfrac>
+                <msub><mi>r</mi><mi>uptake</mi></msub>
+                <mrow><msub><mi>V</mi><mi>L</mi></msub><msup><mi>C</mi><mo>*</mo></msup></mrow>
+              </mfrac>
+            </mrow>
           </math>
         </div>
 
         <p>
-          The non-target part of the dosing mixture is assumed to remain in the headspace and not
-          significantly dissolve or react. If the selected dosing mixture cannot reach the requested
-          headspace concentration, the calculation returns an error instead of extrapolating.
+          D = 1 corresponds to the calculated maximum transfer capacity. D &gt; 1 means the entered rate cannot be supported by the selected kLa under these assumptions.
+          Explore mode uses the same equations and updates them live.
         </p>
 
+        <h4>Rough kLa screening values</h4>
         <p>
-          If the target is already reached or exceeded, gas to add is reported as 0.
+          If kLa has not been measured, the tool can use the central values below with a ±50% screening range. They are starting points, not vessel-specific measurements.
+        </p>
+
+        <div class="table-wrap compact-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Vessel / working volume</th>
+                <th>100 rpm</th>
+                <th>150 rpm</th>
+                <th>200 rpm</th>
+                <th>400 rpm*</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td>Tube (10-20 mL)</td><td>8</td><td>15</td><td>30</td><td>80</td></tr>
+              <tr><td>Flask (20-120 mL)</td><td>4</td><td>12</td><td>20</td><td>60</td></tr>
+              <tr><td>Small bottle (120-500 mL)</td><td>5</td><td>10</td><td>15</td><td>40</td></tr>
+              <tr><td>Large bottle (0.5-2 L)</td><td>2</td><td>5</td><td>8</td><td>25</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p class="muted">Values are kLa in h<sup>−1</sup>. 400 rpm is a higher-uncertainty extrapolation. Use a measured value whenever available.</p>
+      </div>
+
+      <div class="method-step">
+        <h3>Gas dosing</h3>
+        <p>
+          A dissolved target is converted to its required partial pressure. A headspace target (% or ppmv) is solved together with gas-liquid equilibrium and the pressure added by the dosing mixture.
+        </p>
+
+        <div class="equation math-display">
+          <math display="block">
+            <msub><mi>p</mi><mi>i</mi></msub><mo>=</mo>
+            <msub><mi>y</mi><mtext>target</mtext></msub><msub><mi>P</mi><mtext>final</mtext></msub>
+          </math>
+        </div>
+
+        <p>
+          For CO₂ and H₂S, dissolved targets can refer to the molecular gas or the estimated total dissolved pool when pH is available.
+          If the selected dosing mixture cannot reach the target, the calculation returns an error.
         </p>
       </div>
 
@@ -1646,34 +1616,15 @@
       </p>
 
       <p>
-        <strong>Shaken-vessel and batch k<sub>L</sub>a screening ranges</strong><br>
-        Jang, N. et al. (2017). <em>Determination of volumetric gas-liquid mass transfer coefficient of carbon monoxide in a batch cultivation system using kinetic simulations</em>.
-        Bioresource Technology, 239, 387-393.
+        <strong>Mass-transfer screening</strong><br>
+        Jang, N. et al. (2017). CO k<sub>L</sub>a in a batch cultivation system.
         <a href="https://doi.org/10.1016/j.biortech.2017.05.023" target="_blank" rel="noopener">doi:10.1016/j.biortech.2017.05.023</a><br>
-        Schick, B. et al. (2025). <em>Effects of carbon monoxide supply on gas fermentations in serum bottles investigated by online monitoring of gas transfer rates</em>.
-        Biochemical Engineering Journal, 222, 109838.
+        Schick, B. et al. (2025). CO transfer in shaken serum-bottle gas fermentations.
         <a href="https://doi.org/10.1016/j.bej.2025.109838" target="_blank" rel="noopener">doi:10.1016/j.bej.2025.109838</a><br>
-        Zhang, H. et al. (2005). <em>Computational-fluid-dynamics analysis of mixing and gas-liquid mass transfer in shake flasks</em>.
-        Biotechnology and Applied Biochemistry, 41, 1-8.
-        <a href="https://doi.org/10.1042/BA20040082" target="_blank" rel="noopener">doi:10.1042/BA20040082</a><br>
-        Logan, B. E. &amp; Kohler, D. (2001). <em>Oxygen mass-transfer coefficients for different sample containers used in the headspace biochemical oxygen demand test</em>.
-        Water Environment Research, 73, 58-62.
+        Logan, B. E. &amp; Kohler, D. (2001). Oxygen mass transfer in headspace test containers.
         <a href="https://doi.org/10.2175/106143001X138697" target="_blank" rel="noopener">doi:10.2175/106143001X138697</a><br>
-        Mayrhofer, P. et al. (2021). <em>Shake tube perfusion cell cultures are suitable tools for the prediction of limiting substrate, CSPR, bleeding strategy, growth and productivity behavior</em>.
-        Journal of Chemical Technology &amp; Biotechnology.
-        <a href="https://doi.org/10.1002/jctb.6848" target="_blank" rel="noopener">doi:10.1002/jctb.6848</a><br>
-        Klöckner, W. et al. (2013). <em>Correlation between mass transfer coefficient kLa and relevant operating parameters in cylindrical disposable shaken bioreactors on a bench-to-pilot scale</em>.
-        Biotechnology for Biofuels, 6, 118.
-        <a href="https://doi.org/10.1186/1754-1611-7-28" target="_blank" rel="noopener">doi:10.1186/1754-1611-7-28</a><br>
-        Takeshita, T. et al. (1993). <em>Development of a dissolved hydrogen sensor and its application to evaluation of hydrogen mass transfer</em>.
-        Journal of Fermentation and Bioengineering, 76, 148-150.
-        <a href="https://doi.org/10.1016/0922-338X(93)90073-H" target="_blank" rel="noopener">doi:10.1016/0922-338X(93)90073-H</a><br>
-        Beckers, L. et al. (2015). <em>Investigation of the links between mass transfer conditions, dissolved hydrogen concentration and biohydrogen production by Clostridium butyricum CWBI1009</em>.
-        Biochemical Engineering Journal, 98, 18-28.
-        <a href="https://doi.org/10.1016/j.bej.2015.01.008" target="_blank" rel="noopener">doi:10.1016/j.bej.2015.01.008</a><br>
-        Lamb, S. C. &amp; Garver, J. C. (1980). <em>Batch- and continuous-culture studies of a methane-utilizing mixed culture</em>.
-        Biotechnology and Bioengineering, 22, 2097-2118.
-        <a href="https://doi.org/10.1002/bit.260221009" target="_blank" rel="noopener">doi:10.1002/bit.260221009</a>
+        Maier, U. &amp; Büchs, J. (2001). Oxygen-transfer correlations for shaken flasks.
+        <a href="https://doi.org/10.1016/S1369-703X(00)00107-8" target="_blank" rel="noopener">doi:10.1016/S1369-703X(00)00107-8</a>
       </p>
 
       <p class="muted">

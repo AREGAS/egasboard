@@ -4,6 +4,7 @@ JavaScript syntax: passed
 JavaScript scientific parity/tests: passed
 Python reference tests: 32 passed
 HTML duplicate-ID check: passed
+Rate/mass-transfer UI labels and dark-mode chart contrast: checked
 Measurement template/example XLSX checks: unchanged from prior verified build
 Sampling-loss correction timing: tested
 CO2 molecular vs DIC sampling correction: tested
@@ -15,7 +16,7 @@ Batch time-series linear rate fitting: tested
 Signed uptake/production rate handling: tested
 Optional gas-transfer screen: tested
 Explore & predict live transfer-capacity model: tested
-Transfer capacity vs kLa and headspace concentration plots: implemented
+Single rate-vs-required-kLa plot with current-rate marker and screening band: implemented
 Literature-based vessel x rpm kLa table: tested
 Gas-specific kLa literature notes/citations: implemented
 Custom/measured/literature kLa path: tested

@@ -24,6 +24,12 @@
   --error-line: #d89292;
   --chart-grid: #e0e8e2;
   --chart-axis: #718078;
+  --chart-text: #162019;
+  --chart-muted: #56635b;
+  --chart-primary: #245f3d;
+  --chart-current: #a24f2f;
+  --chart-band: #8fbea0;
+  --chart-reference: #477d5a;
 }
 
 html[data-theme="dark"] {
@@ -51,6 +57,12 @@ html[data-theme="dark"] {
   --error-line: #835353;
   --chart-grid: #27352c;
   --chart-axis: #8ca096;
+  --chart-text: #f4f7f5;
+  --chart-muted: #c1cbc4;
+  --chart-primary: #68b887;
+  --chart-current: #f0a06f;
+  --chart-band: #5e9d74;
+  --chart-reference: #8dca9f;
 }
 
 
@@ -928,6 +940,9 @@ select {
   align-self: end;
   min-height: 39px;
 }
+.transfer-checkbox span {
+  white-space: nowrap;
+}
 .button-row {
   display: flex;
   flex-wrap: wrap;
@@ -936,7 +951,7 @@ select {
 }
 .transfer-plot-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   margin-top: 20px;
 }
@@ -947,9 +962,72 @@ select {
   background: var(--surface);
 }
 .plot-card h3 { margin: 0 0 8px; }
-.plot-card svg { width: 100%; height: auto; min-height: 300px; }
+.plot-card svg { width: 100%; height: auto; min-height: 320px; }
+.transfer-plot-single {
+  max-width: 980px;
+}
+.plot-explanation {
+  margin: 10px 2px 0;
+  color: var(--muted);
+  font-size: .92rem;
+  line-height: 1.5;
+}
+.transfer-actions .primary-button,
+.transfer-actions .secondary-button {
+  min-width: 118px;
+}
+.equation-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+.equation-pair math {
+  margin: 0;
+}
 
 @media (max-width: 760px) {
   .compact-form-grid,
-  .transfer-plot-grid { grid-template-columns: 1fr; }
+  .transfer-plot-grid,
+  .equation-pair { grid-template-columns: 1fr; }
+
+  .transfer-checkbox span { white-space: normal; }
+}
+
+/* Gas-dosing layout: keep related inputs together and separate the rows visually. */
+.dose-form {
+  margin: 18px 0;
+}
+
+.dose-section {
+  margin: 0 0 24px;
+}
+
+.dose-section:last-child {
+  margin-bottom: 18px;
+}
+
+.dose-section-title {
+  margin: 0 0 9px;
+  color: var(--accent-dark);
+  font-size: .9rem;
+  font-weight: 700;
+}
+
+.dose-grid {
+  margin: 0;
+}
+
+.dose-grid-5 {
+  grid-template-columns: repeat(5, minmax(130px, 1fr));
+}
+
+.dose-grid-3 {
+  grid-template-columns: repeat(3, minmax(170px, 1fr));
+}
+
+@media (max-width: 820px) {
+  .dose-grid-5,
+  .dose-grid-3 {
+    grid-template-columns: 1fr;
+  }
 }
