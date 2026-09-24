@@ -102,3 +102,13 @@ Streamlit v0.3 was used for workflow development and colleague testing.
 - added an explanation below the plot and improved dark-mode chart contrast;
 - moved the rate/mass-transfer equations into the same equation boxes used elsewhere;
 - reduced the visible mass-transfer reference list to the core sources used for the screening model.
+
+### UI cleanup: Batch-to-rate handoff and mass-transfer screen
+
+- added a clear Batch-results prompt linking time-series data to rate fitting and the optional `Rates_mass_transfer` output;
+- made the Batch-to-rate button open Rate & mass transfer directly in Batch time-series mode;
+- shortened Rate & mass transfer labels, previews and assessment text;
+- aligned the mass-transfer checkbox with the Mode and Rate source controls;
+- kept a single rate-vs-required-kLa plot, moved it directly below the settings/actions, improved label spacing, and added a dark-red current-rate marker in dark mode;
+- consolidated the mass-transfer literature into a short table in How it works and removed citations from the interactive controls;
+- Explore & predict now counts once as a tool use on the first successful live calculation instead of counting every tweak.

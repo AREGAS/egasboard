@@ -1,32 +1,20 @@
-(E)Gasboard v0.1 verification - rate sandbox / output cleanup build
+(E)Gasboard v0.1 verification - UI handoff / mass-transfer polish build
 
 JavaScript syntax: passed
 JavaScript scientific parity/tests: passed
-Python reference tests: 32 passed
+Python reference tests: 32 passed (PYTHONPATH=.)
 HTML duplicate-ID check: passed
-Rate/mass-transfer UI labels and dark-mode chart contrast: checked
-Measurement template/example XLSX checks: unchanged from prior verified build
-Sampling-loss correction timing: tested
-CO2 molecular vs DIC sampling correction: tested
-Gas dosing dissolved targets: tested
-Gas dosing equilibrated headspace targets: tested
-ppmv/% headspace conversion: tested
-Unreachable dilute dosing-mixture target: tested
-Batch time-series linear rate fitting: tested
-Signed uptake/production rate handling: tested
-Optional gas-transfer screen: tested
-Explore & predict live transfer-capacity model: tested
-Single rate-vs-required-kLa plot with current-rate marker and screening band: implemented
-Literature-based vessel x rpm kLa table: tested
-Gas-specific kLa literature notes/citations: implemented
-Custom/measured/literature kLa path: tested
-Custom Henry Hcp/B override path: tested
-Transfer-capacity and demand-ratio equations: tested
-Compact Results / Extended_data separation: tested
-Optional Rates_mass_transfer output: tested
-Excel sheet structure: Results, optional Rates_mass_transfer, Extended_data, optional Plots, Calibration_summary, Calibration_fits, optional Calibration_curves, Reference
-CSV/TSV Results-only export: implemented
-CSV/TSV full ZIP package: implemented
-Result download basename: EGasboard_results_v0.1
+Batch-to-rate handoff: checked
+Optional Rates_mass_transfer workbook output: retained
+Rate & mass-transfer control alignment: checked
+Single rate-vs-required-kLa plot: retained
+Current-rate vertical marker: retained; dark-mode line changed to dark red
+Chart margins/tick spacing/dark-mode text contrast: improved
+Interactive literature citations: removed from controls; core sources consolidated in How it works
+Mass-transfer assessment/status text: shortened
+Explore & predict GoatCounter/tool-use tracking: once per successful Explore session
+Analyze-mode mass-transfer tracking: retained on Calculate
+Gas dosing grouped-row UI: retained
+CSV/TSV Results-only and full ZIP package: retained
 Calibration input/template files: unchanged
 License: GPL-3.0-or-later

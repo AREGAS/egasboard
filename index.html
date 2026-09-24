@@ -253,12 +253,17 @@
       <section id="batch-results" class="hidden">
         <h3>Results</h3>
 
+        <p class="batch-rate-prompt">
+          <strong>Time series?</strong> Fit a rate from any selected interval and optionally screen gas transfer.
+          Saved analyses are added to the <code>Rates_mass_transfer</code> sheet in the download.
+        </p>
+
         <div class="download-results-row">
           <button id="download-results" class="primary-button download-results-button">
             Download Excel results
           </button>
-          <button class="secondary-button" data-open-tab="transfer">
-            Analyze rates &amp; mass transfer
+          <button class="secondary-button" data-open-tab="transfer" data-transfer-source="batch">
+            Fit time-series rate
           </button>
         </div>
 
@@ -523,16 +528,16 @@
     <section id="tab-transfer" class="tab-panel">
       <h2>Rate &amp; mass transfer</h2>
 
-      <p class="lead">
-        Fit a time-series rate or enter one manually. Optionally check whether gas transfer can support that rate.
-        Explore mode updates the prediction live as you change the bottle conditions.
+      <p class="lead transfer-lead">
+        <strong>Analyze</strong> fits a Batch interval or uses a manual rate. <strong>Explore &amp; predict</strong> lets you change bottle conditions and see the transfer screen update live.
+        In Analyze mode, choose the rate source below; mass-transfer screening is optional.
       </p>
 
       <div class="form-grid compact-form-grid transfer-top-controls">
         <label>
           Mode
           <select id="transfer-mode">
-            <option value="analyze">Analyze rate</option>
+            <option value="analyze">Analyze</option>
             <option value="explore">Explore &amp; predict</option>
           </select>
         </label>
@@ -540,14 +545,17 @@
         <label id="transfer-rate-source-label">
           Rate source
           <select id="transfer-rate-source">
-            <option value="manual">Manual rate</option>
+            <option value="manual">Manual</option>
             <option value="batch" disabled>Batch time series</option>
           </select>
         </label>
 
-        <label id="transfer-enable-mass-label" class="plot-checkbox transfer-checkbox">
-          <input id="transfer-enable-mass" type="checkbox" checked>
-          <span>Mass-transfer screen</span>
+        <label id="transfer-enable-mass-label" class="transfer-toggle-field">
+          Mass transfer
+          <span class="transfer-toggle-control">
+            <input id="transfer-enable-mass" type="checkbox" checked>
+            <span>Screen rate</span>
+          </span>
         </label>
       </div>
 
@@ -639,9 +647,9 @@
             <input id="transfer-salinity" type="number" value="0" step="0.1" min="0">
           </label>
           <label>
-            Henry Hcp
+            Henry constant
             <select id="transfer-henry-source">
-              <option value="default">Built-in value</option>
+              <option value="default">Built-in Hcp</option>
               <option value="custom">Custom Hcp / B</option>
             </select>
           </label>
@@ -654,10 +662,10 @@
             <input id="transfer-custom-henry-b" type="number" step="any">
           </label>
           <label>
-            kLa source
+            kLa
             <select id="transfer-kla-source">
-              <option value="estimate">Vessel × rpm estimate</option>
-              <option value="custom">Custom kLa</option>
+              <option value="estimate">Estimate</option>
+              <option value="custom">Custom</option>
             </select>
           </label>
           <label id="transfer-vessel-label">
@@ -686,7 +694,6 @@
 
         <p id="transfer-henry-preview" class="example-note"></p>
         <p id="transfer-kla-preview" class="example-note"></p>
-        <p class="example-note"><strong>Estimate only.</strong> Built-in kLa values are rough literature-based screening values. Replace them when you have a better value.</p>
       </div>
 
       <div class="button-row transfer-actions">
@@ -695,16 +702,17 @@
         <button id="transfer-download-analysis" class="secondary-button" disabled>Download CSV</button>
       </div>
 
-      <div id="transfer-status" class="status hidden"></div>
-      <div id="transfer-results" class="metric-grid"></div>
-
       <div id="transfer-prediction-plots" class="transfer-plot-grid hidden">
         <div class="plot-card transfer-plot-single">
           <h3>Rate vs required kLa</h3>
-          <svg id="transfer-kla-chart" viewBox="0 0 900 470" role="img" aria-label="Required kLa versus gas uptake rate"></svg>
+          <svg id="transfer-kla-chart" viewBox="0 0 900 500" role="img" aria-label="Required kLa versus gas uptake rate"></svg>
           <p id="transfer-plot-explanation" class="plot-explanation"></p>
         </div>
       </div>
+
+      <div id="transfer-status" class="status hidden"></div>
+      <div id="transfer-results" class="metric-grid"></div>
+
     </section>
 
     <section id="tab-methods" class="tab-panel prose methods-page">
@@ -1415,11 +1423,11 @@
         </p>
       </div>
 
-      <div class="method-step">
+      <div class="method-step co2-box">
         <h3>Rate &amp; gas-liquid mass transfer</h3>
 
         <p>
-          A straight line can be fitted to a selected Batch interval. Negative slopes are gas uptake; positive slopes are gas production.
+          A selected Batch interval is fitted with a straight line. Negative slopes are uptake; positive slopes are production.
         </p>
 
         <div class="equation math-display">
@@ -1428,7 +1436,7 @@
           </math>
         </div>
 
-        <p>For uptake, the equilibrium dissolved concentration is:</p>
+        <p>For gas uptake, equilibrium concentration and maximum transfer capacity are:</p>
 
         <div class="equation math-display">
           <math display="block">
@@ -1438,8 +1446,6 @@
             </mrow>
           </math>
         </div>
-
-        <p>The maximum transfer capacity assumes the bulk dissolved concentration approaches zero:</p>
 
         <div class="equation math-display">
           <math display="block">
@@ -1472,13 +1478,12 @@
         </div>
 
         <p>
-          D = 1 corresponds to the calculated maximum transfer capacity. D &gt; 1 means the entered rate cannot be supported by the selected kLa under these assumptions.
-          Explore mode uses the same equations and updates them live.
+          D = 1 is the calculated maximum transfer capacity. Values near or above 1 indicate that gas transfer may constrain the observed uptake.
         </p>
 
         <h4>Rough kLa screening values</h4>
         <p>
-          If kLa has not been measured, the tool can use the central values below with a ±50% screening range. They are starting points, not vessel-specific measurements.
+          If kLa has not been measured, the tool uses the central values below with a ±50% screening range.
         </p>
 
         <div class="table-wrap compact-table">
@@ -1502,6 +1507,29 @@
         </div>
 
         <p class="muted">Values are kLa in h<sup>−1</sup>. 400 rpm is a higher-uncertainty extrapolation. Use a measured value whenever available.</p>
+
+        <h4>Literature used for the screening defaults</h4>
+        <div class="table-wrap compact-table methods-table">
+          <table>
+            <thead>
+              <tr><th>Use</th><th>Reference</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>CO, vial-scale batch culture</td>
+                <td>Jang et al. (2017), <a href="https://doi.org/10.1016/j.biortech.2017.05.023" target="_blank" rel="noopener">doi:10.1016/j.biortech.2017.05.023</a></td>
+              </tr>
+              <tr>
+                <td>CO, shaken serum bottles</td>
+                <td>Schick et al. (2025), <a href="https://doi.org/10.1016/j.bej.2025.109838" target="_blank" rel="noopener">doi:10.1016/j.bej.2025.109838</a></td>
+              </tr>
+              <tr>
+                <td>Shaken-vessel kLa ranges</td>
+                <td>Maier &amp; Büchs (2001), <a href="https://doi.org/10.1016/S1369-703X(00)00107-8" target="_blank" rel="noopener">doi:10.1016/S1369-703X(00)00107-8</a></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <div class="method-step">
@@ -1615,17 +1643,6 @@
         </a>
       </p>
 
-      <p>
-        <strong>Mass-transfer screening</strong><br>
-        Jang, N. et al. (2017). CO k<sub>L</sub>a in a batch cultivation system.
-        <a href="https://doi.org/10.1016/j.biortech.2017.05.023" target="_blank" rel="noopener">doi:10.1016/j.biortech.2017.05.023</a><br>
-        Schick, B. et al. (2025). CO transfer in shaken serum-bottle gas fermentations.
-        <a href="https://doi.org/10.1016/j.bej.2025.109838" target="_blank" rel="noopener">doi:10.1016/j.bej.2025.109838</a><br>
-        Logan, B. E. &amp; Kohler, D. (2001). Oxygen mass transfer in headspace test containers.
-        <a href="https://doi.org/10.2175/106143001X138697" target="_blank" rel="noopener">doi:10.2175/106143001X138697</a><br>
-        Maier, U. &amp; Büchs, J. (2001). Oxygen-transfer correlations for shaken flasks.
-        <a href="https://doi.org/10.1016/S1369-703X(00)00107-8" target="_blank" rel="noopener">doi:10.1016/S1369-703X(00)00107-8</a>
-      </p>
 
       <p class="muted">
         Carbonate and sulfide speciation are documented here by the equations and pKa
