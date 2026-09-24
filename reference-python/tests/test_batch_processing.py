@@ -325,7 +325,7 @@ def test_compact_co2_output_is_concise():
 
 
 
-def test_compact_results_include_partial_pressure_bar():
+def test_compact_results_moves_partial_pressure_to_extended_data():
     internal = pd.DataFrame(
         [
             {
@@ -350,11 +350,11 @@ def test_compact_results_include_partial_pressure_bar():
 
     compact = make_compact_results_table(internal)
 
-    assert compact.loc[0, "CO_partial_pressure_bar"] == 0.15
+    assert "CO_partial_pressure_bar" not in compact.columns
 
 
 
-def test_compact_results_include_plot_source_values():
+def test_compact_results_include_analysis_ready_percent_value():
     internal = pd.DataFrame(
         [
             {
@@ -380,8 +380,8 @@ def test_compact_results_include_plot_source_values():
 
     compact = make_compact_results_table(internal)
 
-    assert compact.loc[0, "CO_gas_percent"] == 10.0
-    assert compact.loc[0, "CO_partial_pressure_bar"] == 0.15
+    assert compact.loc[0, "CO_percent"] == 10.0
+    assert "CO_partial_pressure_bar" not in compact.columns
 
 
 def test_sampling_correction_is_applied_to_later_time_points_only():

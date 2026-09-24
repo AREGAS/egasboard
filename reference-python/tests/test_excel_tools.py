@@ -154,3 +154,35 @@ def test_calibration_curve_sheet_contains_chart():
         assert "xl/charts/chart1.xml" in names
         workbook_xml = archive.read("xl/workbook.xml").decode("utf-8")
         assert 'name="Calibration_curves"' in workbook_xml
+
+
+def test_output_workbook_uses_clean_sheet_structure_and_optional_rate_sheet():
+    from io import BytesIO
+    from zipfile import ZipFile
+
+    results = pd.DataFrame({"sample_id": ["Bottle_01"], "total_bottle_mmol": [1.0]})
+    calibration = pd.DataFrame({"gas_id": ["CO"], "r_squared": [0.999]})
+    rate_rows = [
+        {
+            "analysis_source": "manual",
+            "gas_id": "CO",
+            "signed_rate_mmol_d": -0.2,
+            "mass_transfer_assessed": True,
+        }
+    ]
+
+    output_bytes = make_output_excel(
+        results,
+        calibration,
+        include_plots=False,
+        rate_analyses=rate_rows,
+    )
+
+    with ZipFile(BytesIO(output_bytes)) as archive:
+        workbook_xml = archive.read("xl/workbook.xml").decode("utf-8")
+        assert 'name="Results"' in workbook_xml
+        assert 'name="Rates_mass_transfer"' in workbook_xml
+        assert 'name="Extended_data"' in workbook_xml
+        assert 'name="Calibration_summary"' in workbook_xml
+        assert 'name="Calibration_fits"' in workbook_xml
+        assert 'name="Calibration_data"' not in workbook_xml
