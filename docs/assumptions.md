@@ -50,3 +50,22 @@ Estimated DIC is strongly pH-dependent. In quantitative CO2 utilization or carbo
 - volatile fatty-acid speciation;
 - formal propagation of analytical uncertainty;
 - automatic mechanistic or biological interpretation.
+## Rate and mass-transfer screening
+
+- The mass-transfer module currently evaluates gas uptake from the headspace into the liquid.
+- CO2/H2S mass-transfer screening uses molecular gas transfer only; reactive absorption can change the effective uptake rate.
+- Built-in kLa values are literature-based screening estimates for comparable shaken batch systems, not universal vessel constants.
+- The built-in estimate range is ±50% around the central screening value.
+- The 400 rpm values are higher-uncertainty extrapolations.
+- Vessel geometry, fill fraction, orbital diameter, baffling, viscosity, surfactants, medium composition and gas diffusivity can materially change the true kLa.
+- A measured or directly relevant literature kLa should be used whenever available. The mass-transfer module also allows user replacement of the built-in Henry Hcp/B values.
+- `MTRmax = kLa × V_L × C*` assumes the limiting case `C_L = 0`; it is therefore a maximum transfer-capacity screen, not a direct measurement of the actual transfer rate.
+
+
+
+## Rate and transfer analysis
+
+- Linear rate fitting assumes the selected interval is reasonably represented by a straight line.
+- The mass-transfer screen uses the molecular-gas driving force and currently evaluates gas uptake, not outgassing.
+- Built-in kLa values are screening estimates for comparable shaken batch systems and remain user-overridable.
+- Explore & predict is a physical transfer-capacity model, not a biological growth or kinetic prediction.

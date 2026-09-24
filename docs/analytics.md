@@ -23,6 +23,7 @@ export const GOATCOUNTER_ENDPOINT =
 - `batch-calculation`
 - `single-calculation`
 - `gas-dosing`
+- `mass-transfer-analysis`
 - `excel-results-download`
 - `measurement-template-download`
 - `calibration-template-download`

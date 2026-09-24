@@ -307,6 +307,79 @@ H2S is treated analogously. The molecular H2S correction uses dissolved molecula
 
 If a required gas measurement or pH value is missing at a sampling event, later reactive-pool corrections that depend on that event are reported as incomplete rather than silently treating the removed amount as zero.
 
+## Rate and gas-liquid mass-transfer screening
+
+The separate **Rate & mass transfer** module can fit a straight line to a selected Batch time-series interval:
+
+\[
+n(t)=mt+b
+\]
+
+The slope is retained as a signed rate: negative for gas uptake and positive for gas production. R² and the number of fitted points are reported. The current gas-transfer screen then evaluates whether gas-liquid transfer can support an observed **gas uptake** rate.
+
+The equilibrium molecular dissolved concentration is first calculated from the current headspace conditions:
+
+\[
+C^*=H_s^{cp}(T)p_i
+\]
+
+For gas uptake, the maximum transfer capacity occurs when the bulk dissolved concentration approaches zero:
+
+\[
+MTR_{max}=k_LaV_LC^*
+\]
+
+where:
+
+- \(k_La\) is the volumetric gas-liquid mass-transfer coefficient in h⁻¹;
+- \(V_L\) is liquid volume;
+- \(C^*\) is the equilibrium molecular dissolved concentration.
+
+The transfer-demand ratio is:
+
+\[
+D=\frac{r_{uptake}}{MTR_{max}}
+\]
+
+A value of \(D=1\) means the observed uptake would require the bulk dissolved concentration to approach zero. A value above 1 means the observed uptake exceeds the calculated maximum transfer capacity for the supplied kLa and gas conditions.
+
+The minimum kLa required to support the entered rate even at \(C_L=0\) is:
+
+\[
+k_La_{min}=\frac{r_{uptake}}{V_LC^*}
+\]
+
+### Rough kLa screening estimates
+
+A measured or otherwise independently determined kLa is preferred. When none is available, (E)Gasboard offers deliberately broad screening estimates for ordinary **unbaffled orbital shaking**:
+
+| Vessel / typical working-volume class | 100 rpm | 150 rpm | 200 rpm | 400 rpm* |
+| --- | ---: | ---: | ---: | ---: |
+| Tube (10-20 mL) | 8 | 15 | 30 | 80 |
+| Flask (20-120 mL) | 4 | 12 | 20 | 60 |
+| Small bottle (120-500 mL) | 5 | 10 | 15 | 40 |
+| Large bottle (0.5-2 L) | 2 | 5 | 8 | 25 |
+
+Values are central screening kLa estimates in h⁻¹. The interface displays an indicative ±50% range around each value. The 400 rpm values are higher-uncertainty extrapolations.
+
+These values are **not universal constants**. Published work shows strong dependence on vessel geometry, filling volume, orbital diameter, baffling, medium properties and operating conditions. The table is a first-pass screening estimate. Direct gas-specific batch data are shown where available, and the user can replace kLa with a more representative measured or literature value.
+
+Relevant literature includes:
+
+- Jang N et al. (2017), *Determination of volumetric gas-liquid mass transfer coefficient of carbon monoxide in a batch cultivation system using kinetic simulations*, DOI: 10.1016/j.biortech.2017.05.023. Their vial-scale CO batch data were reproduced with kLa ≈ 13 h⁻¹ under the studied conditions.
+- Schick B et al. (2025), *Effects of carbon monoxide supply on gas fermentations in serum bottles investigated by online monitoring of gas transfer rates*, DOI: 10.1016/j.bej.2025.109838. Direct serum-bottle experiments showed strong effects of shaking frequency and declining headspace CO on the available CO-transfer rate.
+- Zhang H et al. (2005), *Computational-fluid-dynamics analysis of mixing and gas-liquid mass transfer in shake flasks*, DOI: 10.1042/BA20040082. Reported 250 mL shake-flask kLa values spanning approximately 10-100 h⁻¹ across 100-300 rpm, 20-60 mm orbit diameters and 25-100 mL fill volumes.
+- Logan BE & Kohler D (2001), *Oxygen mass-transfer coefficients for different sample containers used in the headspace biochemical oxygen demand test*, DOI: 10.2175/106143001X138697. Reported an average kLa of 8.0 h⁻¹ (5.4-9.9 h⁻¹) for partially filled 28-160 mL containers shaken at 200 rpm.
+- Takeshita T et al. (1993), *Development of a dissolved hydrogen sensor and its application to evaluation of hydrogen mass transfer*, DOI: 10.1016/0922-338X(93)90073-H. Directly determined hydrogen kLa in culture systems and compared it with oxygen transfer.
+- Beckers L et al. (2015), *Investigation of the links between mass transfer conditions, dissolved hydrogen concentration and biohydrogen production by Clostridium butyricum CWBI1009*, DOI: 10.1016/j.bej.2015.01.008. Shows the importance of system-specific hydrogen transfer and departures from Henry equilibrium.
+- Lamb SC & Garver JC (1980), *Batch- and continuous-culture studies of a methane-utilizing mixed culture*, DOI: 10.1002/bit.260221009. Reports a directly determined methane kLa for their culture system.
+- Mayrhofer P et al. (2021), *Shake tube perfusion cell cultures are suitable tools for the prediction of limiting substrate, CSPR, bleeding strategy, growth and productivity behavior*, DOI: 10.1002/jctb.6848. Discusses >60 h⁻¹ at 10 mL/180 rpm and ~50 h⁻¹ at 20 mL/220 rpm for 50 mL shaken tubes.
+- Klöckner W et al. (2013), *Correlation between mass transfer coefficient kLa and relevant operating parameters in cylindrical disposable shaken bioreactors on a bench-to-pilot scale*, DOI: 10.1186/1754-1611-7-28. Demonstrates the strong dependence of kLa on reactor diameter, shaking frequency, fill volume, viscosity, diffusivity and shaking diameter.
+
+Explore & predict mode uses the same transfer equations interactively. Changing kLa, headspace concentration, pressure, liquid volume or Henry-law assumptions updates the predicted transfer capacity and minimum required kLa in real time.
+
+The module currently screens gas **uptake**. Gas-production/outgassing limitation requires the dissolved supersaturation driving force and is not yet implemented. For CO2 and H2S, the screen uses molecular gas transfer only; rapid acid-base reaction or chemical consumption can change the effective absorption rate relative to this simple physical-transfer model.
+
 ## CO₂: physical CO₂ versus estimated DIC
 
 For CO₂, two related quantities are reported separately.
@@ -374,6 +447,12 @@ Thus:
 - 10000 ppmv = 1%
 
 `ppmv` is a gas-phase composition unit and is not a mass-based ppm concentration.
+
+### Gas-transfer estimates
+
+kLa depends strongly on vessel geometry, liquid volume, shaking conditions and medium composition. (E)Gasboard therefore uses literature-based screening estimates for comparable batch systems where available. These values are not exact system-specific measurements, and both kLa and the Henry Hcp/B values used in the mass-transfer screen can be replaced by the user.
+
+(If you disagree or have more representative values, please let me know!)
 
 ---
 

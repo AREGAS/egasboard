@@ -87,3 +87,19 @@ Input QC stays quiet when nothing is wrong and reports **All good!**.
 ## Gas dosing units
 
 Gas dosing supports dissolved targets in µM and equilibrated headspace targets in either `%` or `ppmv`. Initial headspace composition and dosing-mixture composition can also be entered as `%` or `ppmv`. Results report the equilibrated headspace concentration in both units.
+## Rate & mass transfer module
+
+The module can be used in two ways:
+
+- **Analyze measured rate** - enter a rate manually or fit a linear rate from a selected Batch time-series interval;
+- **Explore & predict** - vary bottle conditions, headspace concentration, Henry-law values and kLa interactively to see how the maximum supportable uptake rate changes.
+
+A Batch-derived fit records the selected experiment/sample/gas, rate basis, interval, number of points, signed slope and R². Negative slopes are uptake; positive slopes are production. The current mass-transfer screen is applied only to uptake.
+
+Mass-transfer output includes `C*`, kLa assumptions, low/central/high transfer capacity for rough estimates, transfer-demand ratio and minimum required kLa. Saved analyses are added to `Rates_mass_transfer` in Excel or the full CSV/TSV data package.
+
+## Download formats
+
+- **Excel (.xlsx):** one workbook with Results, optional Rates_mass_transfer, Extended_data, calibration tables, optional plots and Reference.
+- **CSV/TSV - Results only:** one compact analysis-ready table.
+- **CSV/TSV - Full data package:** a ZIP containing separate Results, Extended_data, Calibration_summary, Calibration_fits and Rates_mass_transfer when used.

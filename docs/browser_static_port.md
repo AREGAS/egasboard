@@ -1,6 +1,6 @@
 # Browser-only v0.1 implementation
 
-The public build contains no scientific server backend. All scientific functions are ordinary JavaScript modules under `js/` and mirror the Python reference implementation under `reference-python/`.
+The public build contains no scientific server backend. All scientific functions are ordinary JavaScript modules under `js/` and mirror the Python reference implementation under `reference-python/`. The gas-transfer screen is implemented in `js/mass-transfer.js` with a readable Python reference in `reference-python/mass_transfer.py`.
 
 ## Why retain Python?
 
@@ -26,4 +26,4 @@ Each calibration gas receives:
 - fitted equation;
 - R² where defined.
 
-Numerical plot source data are not duplicated on the plot sheets. `Results` and `Calibration_data` remain the clear sources.
+Numerical plot source data are not duplicated on the plot sheets. `Results`, `Extended_data` and `Calibration_fits` remain the clear sources.
