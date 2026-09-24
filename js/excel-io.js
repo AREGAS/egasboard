@@ -7,7 +7,7 @@
  * in the calculation modules under /js.
  *
  * Plot sheets contain HIGH-RESOLUTION PNG figures, not duplicated data tables.
- * The numerical source data remain in Results and Calibration_data.
+ * The numerical source data remain in Results, Extended_data and calibration sheets.
  */
 
 import {GAS_PROPERTIES} from "./gas-properties.js";
@@ -23,6 +23,19 @@ const WHITE = "FFFFFFFF";
 
 export function excelJsAvailable() {
   return typeof globalThis.ExcelJS !== "undefined";
+}
+
+export function jsZipAvailable() {
+  return typeof globalThis.JSZip !== "undefined";
+}
+
+function requireJsZip() {
+  if (!jsZipAvailable()) {
+    throw new Error(
+      "The ZIP library could not be loaded. Check your internet connection and reload the page."
+    );
+  }
+  return globalThis.JSZip;
 }
 
 function requireExcelJs() {
@@ -360,6 +373,33 @@ function calibrationDataRows(calibrationRows, calibrations) {
   return output;
 }
 
+function calibrationFitRows(calibrationRows, calibrations) {
+  const rows = [];
+  const gasIds = [...new Set(
+    calibrationRows.map(row => String(row.gas_id).trim().toUpperCase())
+  )];
+
+  for (const gasId of gasIds) {
+    const model = calibrations[gasId];
+    const gasRows = calibrationRows.filter(
+      row => String(row.gas_id).trim().toUpperCase() === gasId
+    );
+
+    for (const row of gasRows) {
+      const gasPercent = Number(row.gas_percent);
+      rows.push({
+        gas_id: gasId,
+        calibration_id: row.calibration_id ?? "",
+        gas_percent: gasPercent,
+        peak_area: Number(row.peak_area),
+        fitted_peak_area: model.slope * gasPercent + model.intercept
+      });
+    }
+  }
+
+  return rows;
+}
+
 function drawAxes(ctx, box, xMin, xMax, yMin, yMax, xLabel, yLabel) {
   const {left, top, width, height} = box;
   ctx.save();
@@ -569,7 +609,7 @@ function writePlotSheet(ExcelJS, workbook, results) {
   addTitle(
     worksheet,
     "Result plots",
-    "All-gas sample plots generated in the browser. Sampling-corrected plots are added when sampling volumes are supplied. Source numbers are stored once in Results."
+    "All-gas sample plots generated in the browser. Sampling-corrected plots are added when sampling volumes are supplied. Source numbers are stored in Results and Extended_data."
   );
   worksheet.showGridLines = false;
   worksheet.getColumn(1).width = 14;
@@ -674,7 +714,7 @@ function writeCalibrationPlotSheet(ExcelJS, workbook, calibrationData, calibrati
   addTitle(
     worksheet,
     "Calibration curves",
-    "Observed standards and fitted calibration lines. Source values are stored once in Calibration_data."
+    "Observed standards and fitted calibration lines. Source values are stored once in Calibration_fits."
   );
   worksheet.showGridLines = false;
 
@@ -706,13 +746,14 @@ function writeReferenceSheet(workbook, includePlots) {
   const settings = [
     ["Software version", "v0.1"],
     ["Calculation version", "v0.1"],
-    ["Results", "One row per bottle/time point. Total bottle amount is headspace + molecular dissolved gas. CO2 and H2S reactive pools are separate."],
+    ["Results", "Compact analysis-ready output: experiment/sample/time, bottle conditions and the main gas amount fields. Detailed calculation fields are kept in Extended_data."],
+    ["Rates_mass_transfer", "Created only when the optional rate/mass-transfer analysis has been saved. Contains fitted rates, kLa/Henry assumptions and transfer-capacity outputs."],
     ["Sampling correction", "Optional liquid_sample_mL and headspace_sample_mL volumes are removed after the measurement on that row. Sampling loss is added back only to subsequent time points."],
     ["Sampling-corrected total", "Current total bottle amount + cumulative gas and molecular dissolved material removed during previous sampling events."],
     ["CO2 sampling correction", "When pH is available, an additional estimated inorganic-carbon balance uses gaseous CO2 + dissolved DIC. DIC is pH-sensitive."],
     ["H2S sampling correction", "When pH is available, an additional sulfide balance uses gaseous H2S + estimated dissolved total sulfide."],
     ["Volume convention", "Enter the actual liquid volume present at every measurement. The tool does not automatically subtract liquid_sample_mL from later rows."],
-    ["Extended data", "Detailed gas-specific calculation output including sampled and cumulative sampling-loss fields when applicable."],
+    ["Extended data", "Detailed gas-specific calculation output including partial pressures, Henry-law values, QC, speciation and sampled/cumulative sampling-loss fields."],
     ["Calibration", "Linear regression. If the fitted intercept is negative, it is set to zero and the slope is refitted."],
     ["Pressure basis", "Absolute pressure"],
     ["Water vapour", "Neglected in v0.1. A correction is planned for a later version."],
@@ -721,7 +762,7 @@ function writeReferenceSheet(workbook, includePlots) {
     ["Partial pressure", "p_i = y_i × P_abs"],
     ["Partial pressure output", "Results: bar. Extended_data: Pa."],
     ["Excel plot sheets", includePlots
-      ? "Plots and Calibration_curves contain PNG figures. Source values stay in Results and Calibration_data."
+      ? "Plots and Calibration_curves contain PNG figures. Source values stay in Results, Extended_data and Calibration_fits."
       : "Plot sheets were not requested for this export."]
   ];
 
@@ -802,6 +843,8 @@ export async function makeOutputWorkbook({
   wideResults,
   calibrationRows,
   calibrations,
+  calibrationSummary = [],
+  rateAnalyses = [],
   includePlots = true
 }) {
   const ExcelJS = requireExcelJs();
@@ -814,6 +857,11 @@ export async function makeOutputWorkbook({
   const resultsSheet = workbook.addWorksheet("Results");
   writeRows(resultsSheet, compactResults);
 
+  if (Array.isArray(rateAnalyses) && rateAnalyses.length) {
+    const rateSheet = workbook.addWorksheet("Rates_mass_transfer");
+    writeRows(rateSheet, rateAnalyses);
+  }
+
   const extendedSheet = workbook.addWorksheet("Extended_data");
   writeRows(extendedSheet, wideResults);
 
@@ -821,11 +869,15 @@ export async function makeOutputWorkbook({
     writePlotSheet(ExcelJS, workbook, results);
   }
 
-  const calibrationData = calibrationDataRows(calibrationRows, calibrations);
-  const calibrationSheet = workbook.addWorksheet("Calibration_data");
-  writeRows(calibrationSheet, calibrationData);
+  const summarySheet = workbook.addWorksheet("Calibration_summary");
+  writeRows(summarySheet, calibrationSummary);
+
+  const calibrationFits = calibrationFitRows(calibrationRows, calibrations);
+  const fitSheet = workbook.addWorksheet("Calibration_fits");
+  writeRows(fitSheet, calibrationFits);
 
   if (includePlots) {
+    const calibrationData = calibrationDataRows(calibrationRows, calibrations);
     writeCalibrationPlotSheet(ExcelJS, workbook, calibrationData, calibrations);
   }
 
@@ -833,7 +885,6 @@ export async function makeOutputWorkbook({
 
   return workbook;
 }
-
 
 function delimitedCell(value, delimiter) {
   if (value === null || value === undefined) {
@@ -855,7 +906,7 @@ function delimitedCell(value, delimiter) {
   return needsQuotes ? `"${text}"` : text;
 }
 
-export function makeDelimitedBlob(rows, delimiter = ",") {
+export function makeDelimitedText(rows, delimiter = ",") {
   if (delimiter !== "," && delimiter !== "\t") {
     throw new Error("Unsupported output delimiter.");
   }
@@ -866,27 +917,42 @@ export function makeDelimitedBlob(rows, delimiter = ",") {
 
   const columns = tableColumns(rows);
   const lines = [];
-
-  lines.push(
-    columns.map(column => delimitedCell(column, delimiter)).join(delimiter)
-  );
+  lines.push(columns.map(column => delimitedCell(column, delimiter)).join(delimiter));
 
   for (const row of rows) {
     lines.push(
-      columns
-        .map(column => delimitedCell(row[column], delimiter))
-        .join(delimiter)
+      columns.map(column => delimitedCell(row[column], delimiter)).join(delimiter)
     );
   }
 
+  return "\uFEFF" + lines.join("\r\n");
+}
+
+export function makeDelimitedBlob(rows, delimiter = ",") {
+  const text = makeDelimitedText(rows, delimiter);
   const mimeType = delimiter === "\t"
     ? "text/tab-separated-values;charset=utf-8"
     : "text/csv;charset=utf-8";
+  return new Blob([text], {type: mimeType});
+}
 
-  return new Blob(
-    ["\uFEFF" + lines.join("\r\n")],
-    {type: mimeType}
-  );
+export async function makeDelimitedPackageBlob(tables, delimiter = ",") {
+  const JSZip = requireJsZip();
+  const zip = new JSZip();
+  const extension = delimiter === "\t" ? "tsv" : "csv";
+
+  let fileCount = 0;
+  for (const [name, rows] of Object.entries(tables || {})) {
+    if (!Array.isArray(rows) || rows.length === 0) continue;
+    zip.file(`${name}.${extension}`, makeDelimitedText(rows, delimiter));
+    fileCount += 1;
+  }
+
+  if (fileCount === 0) {
+    throw new Error("There are no calculated tables to export.");
+  }
+
+  return zip.generateAsync({type: "blob"});
 }
 
 export async function workbookToBlob(workbook) {

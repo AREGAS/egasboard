@@ -1,6 +1,15 @@
 import {GAS_PROPERTIES} from "./gas-properties.js";
 import {calculateGasState, calculateRequiredGasAddition} from "./calculations.js";
 import {
+  calculateMassTransferAssessment,
+  getKlaScreeningEstimate,
+  transferCapacityMmolPerDay
+} from "./mass-transfer.js";
+import {
+  fitTimeSeriesRate,
+  availableRateMetrics
+} from "./rate-analysis.js";
+import {
   summarizeInputValidation,
   fitCalibrationsFromTable,
   makeCalibrationFitTable,
@@ -13,6 +22,7 @@ import {
   readInputTable,
   makeOutputWorkbook,
   makeDelimitedBlob,
+  makeDelimitedPackageBlob,
   workbookToBlob,
   downloadBlob
 } from "./excel-io.js";
@@ -86,6 +96,9 @@ function cssVariable(name) {
 
 let metadata = null;
 let batchPayload = null;
+let rateAnalysisRows = [];
+let lastTransferExportRow = null;
+let transferLiveTimer = null;
 
 function byId(id) {
   return document.getElementById(id);
@@ -398,6 +411,469 @@ async function calculateDose() {
   }
 }
 
+function transferSeriesRows() {
+  if (!batchPayload) return [];
+
+  const experiment = byId("transfer-batch-experiment").value;
+  const sample = byId("transfer-batch-sample").value;
+  const gas = byId("transfer-batch-gas").value;
+
+  return batchPayload.results
+    .filter(row =>
+      !row.processing_error &&
+      String(row.experiment_id) === experiment &&
+      String(row.sample_id) === sample &&
+      String(row.gas_id) === gas
+    )
+    .sort((a, b) => Number(a.time_h) - Number(b.time_h));
+}
+
+function populateTransferBatchSelectors() {
+  const sourceSelect = byId("transfer-rate-source");
+  const batchOption = sourceSelect.querySelector('option[value="batch"]');
+  const hasBatch = Boolean(batchPayload && batchPayload.results && batchPayload.results.length);
+
+  if (batchOption) batchOption.disabled = !hasBatch;
+  if (!hasBatch) {
+    if (sourceSelect.value === "batch") sourceSelect.value = "manual";
+    updateTransferMode();
+    return;
+  }
+
+  const rows = batchPayload.results.filter(row => !row.processing_error);
+  const experiments = [...new Set(rows.map(row => String(row.experiment_id)))];
+  populateSelect(byId("transfer-batch-experiment"), experiments);
+  refreshTransferBatchSamples();
+}
+
+function refreshTransferBatchSamples() {
+  if (!batchPayload) return;
+  const experiment = byId("transfer-batch-experiment").value;
+  const rows = batchPayload.results.filter(row =>
+    !row.processing_error && String(row.experiment_id) === experiment
+  );
+  const samples = [...new Set(rows.map(row => String(row.sample_id)))];
+  populateSelect(byId("transfer-batch-sample"), samples);
+  refreshTransferBatchGases();
+}
+
+function refreshTransferBatchGases() {
+  if (!batchPayload) return;
+  const experiment = byId("transfer-batch-experiment").value;
+  const sample = byId("transfer-batch-sample").value;
+  const rows = batchPayload.results.filter(row =>
+    !row.processing_error &&
+    String(row.experiment_id) === experiment &&
+    String(row.sample_id) === sample
+  );
+  const gases = [...new Set(rows.map(row => String(row.gas_id)))];
+  populateSelect(byId("transfer-batch-gas"), gases);
+  refreshTransferRateMetrics();
+}
+
+function refreshTransferRateMetrics() {
+  const rows = transferSeriesRows();
+  const gas = byId("transfer-batch-gas").value;
+  const metrics = availableRateMetrics(rows, gas);
+  const select = byId("transfer-rate-basis");
+  select.innerHTML = "";
+
+  for (const metric of metrics) {
+    const option = document.createElement("option");
+    option.value = metric.value;
+    option.textContent = metric.label;
+    select.appendChild(option);
+  }
+
+  if (!metrics.length) {
+    const option = document.createElement("option");
+    option.value = "total_bottle_mmol";
+    option.textContent = "Total bottle amount";
+    select.appendChild(option);
+  }
+
+  const hasActualSampling = rows.some(row =>
+    Number(row.liquid_sample_mL || 0) > 0 || Number(row.headspace_sample_mL || 0) > 0
+  );
+  const preferred = (hasActualSampling
+    ? metrics.find(item => item.value === "sampling_corrected_total_mmol")
+    : null) || metrics.find(item => item.value === "total_bottle_mmol");
+  if (preferred) select.value = preferred.value;
+
+  refreshTransferTimeRange();
+}
+
+function refreshTransferTimeRange() {
+  const rows = transferSeriesRows();
+  const times = [...new Set(
+    rows.map(row => Number(row.time_h)).filter(Number.isFinite)
+  )].sort((a, b) => a - b);
+
+  populateSelect(byId("transfer-time-start"), times);
+  populateSelect(byId("transfer-time-end"), times);
+  if (times.length) {
+    byId("transfer-time-start").value = String(times[0]);
+    byId("transfer-time-end").value = String(times[times.length - 1]);
+  }
+}
+
+function fitSelectedBatchRate() {
+  const rows = transferSeriesRows();
+  const fit = fitTimeSeriesRate({
+    rows,
+    metric: byId("transfer-rate-basis").value,
+    time_start_h: Number(byId("transfer-time-start").value),
+    time_end_h: Number(byId("transfer-time-end").value)
+  });
+
+  if (fit.mean_liquid_volume_mL !== null) {
+    byId("transfer-liquid").value = fit.mean_liquid_volume_mL;
+  }
+  if (fit.mean_temperature_C !== null) {
+    byId("transfer-temperature").value = fit.mean_temperature_C;
+  }
+  if (fit.mean_pressure_bar_abs !== null) {
+    byId("transfer-pressure").value = fit.mean_pressure_bar_abs;
+  }
+  if (fit.mean_gas_percent !== null) {
+    byId("transfer-gas-value").value = fit.mean_gas_percent;
+    byId("transfer-gas-unit").value = "percent";
+  }
+  if (fit.mean_salinity_g_L_NaCl !== null) {
+    byId("transfer-salinity").value = fit.mean_salinity_g_L_NaCl;
+  }
+
+  byId("transfer-gas").value = byId("transfer-batch-gas").value;
+  updateTransferHenryControls(true);
+  updateTransferControls();
+
+  let fitHtml = "";
+  fitHtml += metric("Rate basis", fit.metric_label);
+  fitHtml += metric("Selected interval", `${formatNumber(fit.time_start_h, 3)}-${formatNumber(fit.time_end_h, 3)} h`);
+  fitHtml += metric("Points", String(fit.number_of_points));
+  fitHtml += metric("Signed rate", `${formatNumber(fit.signed_rate_mmol_d, 5)} mmol/day`);
+  fitHtml += metric("Direction", fit.direction.replace("_", " "));
+  fitHtml += metric("R²", formatNumber(fit.r_squared, 4));
+  byId("transfer-rate-fit-results").innerHTML = fitHtml;
+
+  return fit;
+}
+
+function currentTransferPayload(observedRateMmolD) {
+  return {
+    gas_id: byId("transfer-gas").value,
+    observed_rate_value: observedRateMmolD,
+    observed_rate_unit: "mmol_d",
+    liquid_volume_ml: numberValue("transfer-liquid"),
+    temperature_c: numberValue("transfer-temperature"),
+    pressure_bar_abs: numberValue("transfer-pressure"),
+    headspace_gas_percent: gasConcentrationToPercent(
+      numberValue("transfer-gas-value"),
+      byId("transfer-gas-unit").value
+    ),
+    salinity_g_l_nacl: numberValue("transfer-salinity"),
+    kla_source: byId("transfer-kla-source").value,
+    vessel_class: byId("transfer-vessel").value,
+    shaking_rpm: numberValue("transfer-rpm"),
+    custom_kla_h: optionalNumber("transfer-custom-kla"),
+    henry_source: byId("transfer-henry-source").value,
+    custom_hcp_ref: optionalNumber("transfer-custom-hcp"),
+    custom_henry_B_K: optionalNumber("transfer-custom-henry-b")
+  };
+}
+
+function renderTransferPredictionPlots(result) {
+  const observedRate = Number(result.observed_rate_mmol_d);
+  const maxKla = Math.max(
+    5,
+    Number(result.kla_high_h || result.kla_central_h) * 2,
+    Number.isFinite(result.minimum_required_kla_h) ? result.minimum_required_kla_h * 1.5 : 0
+  );
+
+  const klaValues = [];
+  const capacities = [];
+  const observed = [];
+  for (let index = 0; index <= 24; index += 1) {
+    const kla = maxKla * index / 24;
+    klaValues.push(kla);
+    capacities.push(
+      transferCapacityMmolPerDay(
+        kla,
+        result.liquid_volume_L,
+        result.equilibrium_dissolved_mmol_L
+      )
+    );
+    observed.push(observedRate);
+  }
+
+  drawMultiLineChart(
+    byId("transfer-kla-chart"),
+    [
+      {label: "Transfer capacity", xValues: klaValues, yValues: capacities},
+      {label: "Rate to compare", xValues: klaValues, yValues: observed}
+    ],
+    "kLa (h⁻¹)",
+    "Rate (mmol/day)"
+  );
+
+  const currentPercent = Number(result.headspace_gas_percent);
+  let maxPercent;
+  if (currentPercent < 1) {
+    maxPercent = Math.max(0.2, currentPercent * 4);
+  } else if (currentPercent < 10) {
+    maxPercent = Math.max(10, currentPercent * 3);
+  } else {
+    maxPercent = Math.min(100, Math.max(20, currentPercent * 2));
+  }
+
+  const gasValues = [];
+  const gasCapacities = [];
+  const gasObserved = [];
+  for (let index = 0; index <= 24; index += 1) {
+    const gasPercent = maxPercent * index / 24;
+    const partialPressurePa = gasPercent / 100.0 * result.pressure_bar_abs * 100000.0;
+    const cStar = result.henry_temperature_corrected * partialPressurePa;
+    gasValues.push(gasPercent);
+    gasCapacities.push(
+      transferCapacityMmolPerDay(
+        result.kla_central_h,
+        result.liquid_volume_L,
+        cStar
+      )
+    );
+    gasObserved.push(observedRate);
+  }
+
+  drawMultiLineChart(
+    byId("transfer-gas-chart"),
+    [
+      {label: "Transfer capacity", xValues: gasValues, yValues: gasCapacities},
+      {label: "Rate to compare", xValues: gasValues, yValues: gasObserved}
+    ],
+    "Headspace gas (%)",
+    "Rate (mmol/day)"
+  );
+}
+
+function transferExportRow(result, rateFit, sourceLabel) {
+  const row = {
+    analysis_source: sourceLabel,
+    experiment_id: rateFit ? byId("transfer-batch-experiment").value : "",
+    sample_id: rateFit ? byId("transfer-batch-sample").value : "",
+    gas_id: result ? result.gas_id : byId("transfer-gas").value,
+    rate_basis: rateFit ? rateFit.metric : "manual_rate",
+    time_start_h: rateFit ? rateFit.time_start_h : null,
+    time_end_h: rateFit ? rateFit.time_end_h : null,
+    number_of_points: rateFit ? rateFit.number_of_points : null,
+    slope_mmol_h: rateFit ? rateFit.slope_mmol_h : null,
+    signed_rate_mmol_d: rateFit ? rateFit.signed_rate_mmol_d : Number(byId("transfer-rate").value),
+    rate_direction: rateFit ? rateFit.direction : "manual",
+    r_squared: rateFit ? rateFit.r_squared : null,
+    mass_transfer_assessed: Boolean(result)
+  };
+
+  if (!result) return row;
+
+  return Object.assign(row, {
+    rate_to_compare_mmol_d: result.observed_rate_mmol_d,
+    liquid_volume_mL: result.liquid_volume_L * 1000.0,
+    temperature_C: result.temperature_K - 273.15,
+    pressure_bar_abs: result.pressure_bar_abs,
+    headspace_gas_percent: result.headspace_gas_percent,
+    headspace_gas_ppmv: result.headspace_gas_ppmv,
+    partial_pressure_bar: result.partial_pressure_bar,
+    equilibrium_dissolved_mmol_L: result.equilibrium_dissolved_mmol_L,
+    henry_source: result.henry_source,
+    henry_overridden: result.henry_overridden,
+    henry_reference_Hcp_mol_m3_Pa: result.henry_reference_Hcp_mol_m3_Pa,
+    henry_B_K: result.henry_B_K,
+    kla_source: result.kla_source,
+    kla_literature_note: result.kla_literature_note || "",
+    kla_literature_citation: result.kla_literature_citation || "",
+    vessel_class: result.vessel_label || "",
+    shaking_rpm: result.shaking_rpm,
+    kla_low_h: result.kla_low_h,
+    kla_central_h: result.kla_central_h,
+    kla_high_h: result.kla_high_h,
+    transfer_capacity_low_mmol_d: result.transfer_capacity_low_mmol_d,
+    transfer_capacity_central_mmol_d: result.transfer_capacity_central_mmol_d,
+    transfer_capacity_high_mmol_d: result.transfer_capacity_high_mmol_d,
+    transfer_demand_ratio_central: result.transfer_demand_ratio_central,
+    minimum_required_kla_h: result.minimum_required_kla_h,
+    assessment: result.assessment_message,
+    warnings: (result.warnings || []).join(" | ")
+  });
+}
+
+function saveRateAnalysisRow(row) {
+  const keyFields = [
+    "analysis_source", "experiment_id", "sample_id", "gas_id",
+    "rate_basis", "time_start_h", "time_end_h"
+  ];
+  const key = keyFields.map(field => String(row[field] ?? "")).join("|");
+  const existingIndex = rateAnalysisRows.findIndex(existing =>
+    keyFields.map(field => String(existing[field] ?? "")).join("|") === key
+  );
+
+  if (existingIndex >= 0) {
+    rateAnalysisRows[existingIndex] = row;
+  } else {
+    rateAnalysisRows.push(row);
+  }
+
+  if (batchPayload) batchPayload.rate_analyses = rateAnalysisRows;
+}
+
+async function calculateTransfer({trackUsage = true, saveAnalysis = true, live = false} = {}) {
+  const status = byId("transfer-status");
+  clearStatus(status);
+
+  try {
+    const mode = byId("transfer-mode").value;
+    const rateSource = byId("transfer-rate-source").value;
+    const assessMassTransfer = mode === "explore" || byId("transfer-enable-mass").checked;
+
+    let rateFit = null;
+    let rateToCompare;
+
+    if (mode === "analyze" && rateSource === "batch") {
+      rateFit = fitSelectedBatchRate();
+      if (rateFit.direction === "uptake") {
+        rateToCompare = rateFit.uptake_rate_mmol_d;
+      } else {
+        rateToCompare = Math.abs(rateFit.signed_rate_mmol_d);
+      }
+    } else {
+      const manualRate = numberValue("transfer-rate");
+      const manualUnit = byId("transfer-rate-unit").value;
+      const liquidL = numberValue("transfer-liquid") / 1000.0;
+      if (manualUnit === "mmol_d") rateToCompare = manualRate;
+      else if (manualUnit === "umol_d") rateToCompare = manualRate / 1000.0;
+      else if (manualUnit === "mmol_h") rateToCompare = manualRate * 24.0;
+      else if (manualUnit === "mmol_L_d") rateToCompare = manualRate * liquidL;
+      else throw new Error("Unknown rate unit.");
+    }
+
+    let result = null;
+    let massTransferNote = "";
+    if (assessMassTransfer) {
+      if (rateFit && rateFit.direction === "production") {
+        massTransferNote =
+          "The selected interval shows net gas production. The fitted rate is retained, but the current mass-transfer screen models gas uptake only and is therefore not applied.";
+      } else {
+        result = calculateMassTransferAssessment(currentTransferPayload(rateToCompare));
+      }
+    }
+
+    if (trackUsage && !live) {
+      recordUsage();
+      recordGasCalculations(1);
+      trackAnalyticsEvent("mass-transfer-analysis", "Rate and mass transfer analysis");
+    }
+
+    let html = "";
+    if (result) {
+      html += metric("Equilibrium dissolved concentration (C*)", formatNumber(result.equilibrium_dissolved_umol_L, 3) + " µM");
+      html += metric("Gas partial pressure", formatNumber(result.partial_pressure_bar, 6) + " bar");
+      html += metric("kLa used", formatNumber(result.kla_central_h, 2) + " h⁻¹");
+      if (result.kla_source === "estimate") {
+        html += metric("Indicative kLa range", formatNumber(result.kla_low_h, 2) + "-" + formatNumber(result.kla_high_h, 2) + " h⁻¹");
+      }
+      html += metric("Central transfer capacity", formatNumber(result.transfer_capacity_central_mmol_d, 4) + " mmol/day");
+      html += metric("Rate to compare", formatNumber(result.observed_rate_mmol_d, 4) + " mmol/day");
+      html += metric("Transfer-demand ratio", Number.isFinite(result.transfer_demand_ratio_central) ? formatNumber(result.transfer_demand_ratio_central, 3) : "∞");
+      html += metric("Minimum required kLa", Number.isFinite(result.minimum_required_kla_h) ? formatNumber(result.minimum_required_kla_h, 2) + " h⁻¹" : "∞");
+      html += metric("Henry Hcp used", Number(result.henry_temperature_corrected).toExponential(3) + " mol m⁻³ Pa⁻¹");
+      html += metric("Henry source", result.henry_source + (result.henry_overridden ? " (user override)" : ""));
+      renderTransferPredictionPlots(result);
+      byId("transfer-prediction-plots").classList.remove("hidden");
+    } else {
+      byId("transfer-prediction-plots").classList.add("hidden");
+    }
+
+    byId("transfer-results").innerHTML = html;
+
+    const exportRow = transferExportRow(
+      result,
+      rateFit,
+      mode === "explore" ? "explore_prediction" : rateSource
+    );
+    if (!rateFit) {
+      exportRow.signed_rate_mmol_d = rateToCompare;
+    }
+    lastTransferExportRow = exportRow;
+    byId("transfer-download-analysis").disabled = false;
+
+    if (saveAnalysis && mode === "analyze") {
+      saveRateAnalysisRow(exportRow);
+    }
+    if (saveAnalysis && mode === "explore" && !live) {
+      saveRateAnalysisRow(exportRow);
+    }
+
+    const messages = [];
+    if (result) {
+      messages.push(result.assessment_message);
+      if (result.warnings && result.warnings.length) messages.push(...result.warnings);
+      showStatus(status, result.assessment_level, messages.join("<br><br>"));
+    } else if (rateFit) {
+      showStatus(
+        status,
+        massTransferNote ? "warning" : "good",
+        massTransferNote || "Rate fitted. Mass-transfer screening was left off."
+      );
+    } else {
+      byId("transfer-results").innerHTML = metric(
+        "Entered rate",
+        formatNumber(rateToCompare, 5) + " mmol/day"
+      );
+      showStatus(status, "good", "Rate recorded. Mass-transfer screening was left off.");
+    }
+
+    return {result, rateFit, exportRow};
+  } catch (error) {
+    if (!live) {
+      byId("transfer-results").innerHTML = "";
+      showStatus(status, "error", error.message);
+    }
+    return null;
+  }
+}
+
+function updateTransferMode() {
+  const mode = byId("transfer-mode").value;
+  const rateSource = byId("transfer-rate-source").value;
+  const explore = mode === "explore";
+  const batchSource = !explore && rateSource === "batch";
+
+  byId("transfer-rate-source-label").classList.toggle("hidden", explore);
+  byId("transfer-batch-controls").classList.toggle("hidden", !batchSource);
+  byId("transfer-manual-rate-controls").classList.toggle("hidden", batchSource);
+  byId("transfer-enable-mass-label").classList.toggle("hidden", explore);
+  byId("transfer-calculate").classList.toggle("hidden", explore);
+  byId("transfer-save-scenario").classList.toggle("hidden", !explore);
+  byId("transfer-mode-note").textContent = explore
+    ? "Change bottle, gas, kLa or Henry-law assumptions to see the predicted transfer capacity update live."
+    : "Fit a rate from Batch data or enter a rate manually. Gas-transfer screening is optional.";
+
+  if (explore) scheduleTransferLiveUpdate();
+}
+
+function scheduleTransferLiveUpdate() {
+  if (byId("transfer-mode").value !== "explore") return;
+  clearTimeout(transferLiveTimer);
+  transferLiveTimer = setTimeout(() => {
+    calculateTransfer({trackUsage: false, saveAnalysis: false, live: true});
+  }, 120);
+}
+
+function downloadCurrentTransferAnalysis() {
+  if (!lastTransferExportRow) return;
+  const blob = makeDelimitedBlob([lastTransferExportRow], ",");
+  downloadBlob(blob, "EGasboard_rate_mass_transfer.csv");
+  trackAnalyticsEvent("rate-transfer-download", "Rate mass transfer CSV download");
+}
+
 async function calculateBatch() {
   const status = byId("batch-status");
   clearStatus(status);
@@ -434,6 +910,9 @@ async function calculateBatch() {
       calibrationFits[gasId] = makeCalibrationFitTable(calibrationRows, gasId, model);
     }
 
+    rateAnalysisRows = [];
+    lastTransferExportRow = null;
+
     batchPayload = {
       ok: true,
       input_qc: inputQc,
@@ -444,6 +923,7 @@ async function calculateBatch() {
       results,
       results_compact: compactResults,
       results_wide: wideResults,
+      rate_analyses: rateAnalysisRows,
       output_basename: "EGasboard_results_v0.1"
     };
 
@@ -477,6 +957,7 @@ async function calculateBatch() {
     renderResultsTable(compactResults.length ? compactResults : wideResults);
     renderCalibrationPlot();
     renderSelectedPlot();
+    populateTransferBatchSelectors();
   } catch (error) {
     showStatus(status, "error", error.message);
   }
@@ -1054,27 +1535,40 @@ function updateOutputControls() {
   const formatSelect = byId("output-format");
   const plotCheckbox = byId("include-excel-plots");
   const plotField = byId("excel-plot-options");
+  const scopeField = byId("delimited-output-options");
   const downloadButton = byId("download-results");
 
-  if (!formatSelect || !plotCheckbox || !downloadButton) {
-    return;
-  }
+  if (!formatSelect || !plotCheckbox || !downloadButton) return;
 
   const format = formatSelect.value;
   const isExcel = format === "xlsx";
 
   plotCheckbox.disabled = !isExcel;
-  if (plotField) {
-    plotField.style.opacity = isExcel ? "1" : "0.55";
-  }
+  if (plotField) plotField.style.opacity = isExcel ? "1" : "0.55";
+  if (scopeField) scopeField.classList.toggle("hidden", isExcel);
 
   if (format === "csv") {
-    downloadButton.textContent = "Download CSV results";
+    downloadButton.textContent = byId("output-scope").value === "full"
+      ? "Download CSV data package"
+      : "Download CSV results";
   } else if (format === "tsv") {
-    downloadButton.textContent = "Download TSV results";
+    downloadButton.textContent = byId("output-scope").value === "full"
+      ? "Download TSV data package"
+      : "Download TSV results";
   } else {
     downloadButton.textContent = "Download Excel results";
   }
+}
+
+function calibrationFitRowsForExport() {
+  if (!batchPayload) return [];
+  const rows = [];
+  for (const [gasId, fitRows] of Object.entries(batchPayload.calibration_fits || {})) {
+    for (const row of fitRows) {
+      rows.push({gas_id: gasId, ...row});
+    }
+  }
+  return rows;
 }
 
 async function downloadBatchResults() {
@@ -1094,30 +1588,37 @@ async function downloadBatchResults() {
         wideResults: batchPayload.results_wide,
         calibrationRows: batchPayload.calibration_rows,
         calibrations: batchPayload.calibrations,
+        calibrationSummary: batchPayload.calibration_summary,
+        rateAnalyses: rateAnalysisRows,
         includePlots: byId("include-excel-plots").checked
       });
 
       const blob = await workbookToBlob(workbook);
       downloadBlob(blob, batchPayload.output_basename + ".xlsx");
-      trackAnalyticsEvent(
-        "excel-results-download",
-        "Excel results download"
-      );
+      trackAnalyticsEvent("excel-results-download", "Excel results download");
     } else {
-      const mainResults = batchPayload.results_compact.length
-        ? batchPayload.results_compact
-        : batchPayload.results_wide;
-
       const delimiter = format === "tsv" ? "\t" : ",";
-      const blob = makeDelimitedBlob(mainResults, delimiter);
       const extension = format === "tsv" ? ".tsv" : ".csv";
       const label = format === "tsv" ? "TSV" : "CSV";
+      const scope = byId("output-scope").value;
 
-      downloadBlob(blob, batchPayload.output_basename + extension);
-      trackAnalyticsEvent(
-        format + "-results-download",
-        label + " results download"
-      );
+      if (scope === "full") {
+        button.textContent = `Building ${label} data package...`;
+        const tables = {
+          Results: batchPayload.results_compact,
+          Rates_mass_transfer: rateAnalysisRows,
+          Extended_data: batchPayload.results_wide,
+          Calibration_summary: batchPayload.calibration_summary,
+          Calibration_fits: calibrationFitRowsForExport()
+        };
+        const blob = await makeDelimitedPackageBlob(tables, delimiter);
+        downloadBlob(blob, batchPayload.output_basename + `_${format}_package.zip`);
+        trackAnalyticsEvent(`${format}-package-download`, `${label} full data package download`);
+      } else {
+        const blob = makeDelimitedBlob(batchPayload.results_compact, delimiter);
+        downloadBlob(blob, batchPayload.output_basename + extension);
+        trackAnalyticsEvent(`${format}-results-download`, `${label} results download`);
+      }
     }
   } catch (error) {
     showStatus(byId("batch-status"), "error", error.message);
@@ -1126,7 +1627,6 @@ async function downloadBatchResults() {
     updateOutputControls();
   }
 }
-
 
 function updateDoseControls() {
   const gas = byId("dose-gas").value;
@@ -1160,6 +1660,85 @@ function updateDoseControls() {
   }
 }
 
+function updateTransferHenryControls(resetCustomValues = false) {
+  const source = byId("transfer-henry-source").value;
+  const customMode = source === "custom";
+  const gasId = byId("transfer-gas").value;
+  const gas = GAS_PROPERTIES[gasId];
+
+  byId("transfer-custom-hcp-label").classList.toggle("hidden", !customMode);
+  byId("transfer-custom-henry-b-label").classList.toggle("hidden", !customMode);
+
+  if (gas && resetCustomValues) {
+    byId("transfer-custom-hcp").value = gas.hcp_ref;
+    byId("transfer-custom-henry-b").value = gas.B_K;
+  }
+
+  const preview = byId("transfer-henry-preview");
+  if (!gas) {
+    preview.textContent = "";
+    return;
+  }
+
+  if (customMode) {
+    preview.innerHTML =
+      "Custom Henry values are used with the same temperature correction. " +
+      "Built-in reference for " + gasId + ": Hcp(25 °C) = <strong>" +
+      Number(gas.hcp_ref).toExponential(3) +
+      " mol m<sup>−3</sup> Pa<sup>−1</sup></strong>, B = " +
+      formatNumber(gas.B_K, 0) + " K (" + gas.selected_sander_entry + ").";
+  } else {
+    preview.innerHTML =
+      "Built-in " + gasId + " Henry value: Hcp(25 °C) = <strong>" +
+      Number(gas.hcp_ref).toExponential(3) +
+      " mol m<sup>−3</sup> Pa<sup>−1</sup></strong>, B = " +
+      formatNumber(gas.B_K, 0) + " K (" + gas.selected_sander_entry + ").";
+  }
+}
+
+function updateTransferControls() {
+  const source = byId("transfer-kla-source").value;
+  const estimateMode = source === "estimate";
+
+  byId("transfer-vessel-label").classList.toggle("hidden", !estimateMode);
+  byId("transfer-rpm-label").classList.toggle("hidden", !estimateMode);
+  byId("transfer-custom-kla-label").classList.toggle("hidden", estimateMode);
+
+  const preview = byId("transfer-kla-preview");
+
+  if (estimateMode) {
+    try {
+      const estimate = getKlaScreeningEstimate(
+        byId("transfer-vessel").value,
+        numberValue("transfer-rpm"),
+        byId("transfer-gas").value
+      );
+
+      preview.innerHTML =
+        "Selected rough k<sub>L</sub>a: <strong>" +
+        formatNumber(estimate.central_kla_h, 1) +
+        " h<sup>−1</sup></strong> (indicative " +
+        formatNumber(estimate.low_kla_h, 1) +
+        "-" +
+        formatNumber(estimate.high_kla_h, 1) +
+        " h<sup>−1</sup>). " +
+        (estimate.literature_basis ? estimate.literature_basis.note : "") +
+        (estimate.literature_basis && estimate.literature_basis.citation
+          ? " Source: " + estimate.literature_basis.citation + "."
+          : "") +
+        (estimate.high_speed_extrapolation
+          ? " 400 rpm is treated as a higher-uncertainty extrapolation."
+          : "");
+    } catch (error) {
+      preview.textContent = error.message;
+    }
+  } else {
+    preview.textContent =
+      "Enter a measured or literature-derived kLa directly. No automatic uncertainty range is added.";
+  }
+}
+
+
 async function initialize() {
   setupTheme();
   setupTabs();
@@ -1173,15 +1752,54 @@ async function initialize() {
 
   populateGasSelect(byId("single-gas"), "CO");
   populateGasSelect(byId("dose-gas"), "O2");
+  populateGasSelect(byId("transfer-gas"), "CO");
   updateDoseControls();
+  updateTransferHenryControls(true);
+  updateTransferControls();
 
   byId("single-calculate").addEventListener("click", calculateSingle);
   byId("dose-calculate").addEventListener("click", calculateDose);
   byId("dose-gas").addEventListener("change", updateDoseControls);
   byId("dose-target-mode").addEventListener("change", updateDoseControls);
+  byId("transfer-calculate").addEventListener("click", () => {
+    calculateTransfer({trackUsage: true, saveAnalysis: true, live: false});
+  });
+  byId("transfer-save-scenario").addEventListener("click", () => {
+    calculateTransfer({trackUsage: true, saveAnalysis: true, live: false});
+  });
+  byId("transfer-download-analysis").addEventListener("click", downloadCurrentTransferAnalysis);
+  byId("transfer-mode").addEventListener("change", updateTransferMode);
+  byId("transfer-rate-source").addEventListener("change", updateTransferMode);
+  byId("transfer-batch-experiment").addEventListener("change", refreshTransferBatchSamples);
+  byId("transfer-batch-sample").addEventListener("change", refreshTransferBatchGases);
+  byId("transfer-batch-gas").addEventListener("change", refreshTransferRateMetrics);
+  byId("transfer-rate-basis").addEventListener("change", refreshTransferTimeRange);
+  byId("transfer-kla-source").addEventListener("change", updateTransferControls);
+  byId("transfer-vessel").addEventListener("change", updateTransferControls);
+  byId("transfer-rpm").addEventListener("change", updateTransferControls);
+  byId("transfer-henry-source").addEventListener("change", () => updateTransferHenryControls(true));
+  byId("transfer-gas").addEventListener("change", () => {
+    updateTransferHenryControls(true);
+    updateTransferControls();
+  });
+
+  const liveTransferIds = [
+    "transfer-rate", "transfer-rate-unit", "transfer-liquid", "transfer-temperature",
+    "transfer-pressure", "transfer-gas-value", "transfer-gas-unit", "transfer-salinity",
+    "transfer-henry-source", "transfer-custom-hcp", "transfer-custom-henry-b",
+    "transfer-kla-source", "transfer-vessel", "transfer-rpm", "transfer-custom-kla"
+  ];
+  for (const id of liveTransferIds) {
+    const element = byId(id);
+    if (!element) continue;
+    element.addEventListener("input", scheduleTransferLiveUpdate);
+    element.addEventListener("change", scheduleTransferLiveUpdate);
+  }
+  updateTransferMode();
   byId("batch-calculate").addEventListener("click", calculateBatch);
   byId("download-results").addEventListener("click", downloadBatchResults);
   byId("output-format").addEventListener("change", updateOutputControls);
+  byId("output-scope").addEventListener("change", updateOutputControls);
   updateOutputControls();
 
   byId("calibration-plot-gas").addEventListener("change", renderCalibrationPlot);

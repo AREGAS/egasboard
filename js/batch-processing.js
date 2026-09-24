@@ -765,8 +765,13 @@ export function makeWideResultsTable(results) {
 
 export function makeCompactResultsTable(results) {
   if (!results.length) return [];
-  if (!("excel_row" in results[0]) || !("gas_id" in results[0])) return results.map(row => ({...row}));
+  if (!("excel_row" in results[0]) || !("gas_id" in results[0])) {
+    return results.map(row => ({...row}));
+  }
 
+  // Results is intentionally a compact, analysis-ready table. Detailed
+  // calculation fields, QC, sampling bookkeeping and constants remain in
+  // Extended_data.
   const compact = sourceRowsByExcelRow(results).map(row => ({
     excel_row: row.excel_row,
     experiment_id: row.experiment_id,
@@ -775,36 +780,32 @@ export function makeCompactResultsTable(results) {
     pressure_bar_abs: row.pressure_bar_abs,
     temperature_C: row.temperature_C,
     bottle_volume_mL: row.bottle_volume_mL,
-    liquid_volume_mL: row.liquid_volume_mL,
-    liquid_sample_mL: row.liquid_sample_mL,
-    headspace_sample_mL: row.headspace_sample_mL,
-    salinity_g_L_NaCl: row.salinity_g_L_NaCl,
-    pH: row.pH
+    liquid_volume_mL: row.liquid_volume_mL
   }));
 
-  const gasOrder = uniqueInOrder(results.map(row => String(row.gas_id).trim().toUpperCase()));
+  const gasOrder = uniqueInOrder(
+    results.map(row => String(row.gas_id).trim().toUpperCase())
+  );
 
   for (const gasId of gasOrder) {
-    const rowsForGas = results.filter(row => String(row.gas_id).trim().toUpperCase() === gasId);
+    const rowsForGas = results.filter(
+      row => String(row.gas_id).trim().toUpperCase() === gasId
+    );
     const byExcelRow = new Map(rowsForGas.map(row => [row.excel_row, row]));
 
     for (const outputRow of compact) {
       const row = byExcelRow.get(outputRow.excel_row);
       if (!row) continue;
 
-      outputRow[`${gasId}_gas_percent`] = row.gas_percent ?? null;
+      outputRow[`${gasId}_percent`] = row.gas_percent ?? null;
       outputRow[`${gasId}_total_mmol`] = row.total_bottle_mmol ?? null;
       outputRow[`${gasId}_headspace_mmol`] = row.headspace_mmol ?? null;
       outputRow[`${gasId}_liquid_mmol`] = row.molecular_dissolved_mmol ?? null;
+
       if (!valueIsMissing(row.sampling_corrected_total_mmol)) {
         outputRow[`${gasId}_sampling_corrected_total_mmol`] =
           row.sampling_corrected_total_mmol;
-        outputRow[`${gasId}_cumulative_sampled_mmol`] =
-          row.cumulative_sampled_molecular_mmol ?? null;
       }
-      outputRow[`${gasId}_partial_pressure_bar`] = valueIsMissing(row.partial_pressure_Pa)
-        ? null
-        : Number(row.partial_pressure_Pa) / 100000.0;
 
       if (gasId === "CO2") {
         if (!valueIsMissing(row.estimated_DIC_mmol)) {
@@ -815,25 +816,23 @@ export function makeCompactResultsTable(results) {
             row.estimated_total_inorganic_C_bottle_mmol;
         }
         if (!valueIsMissing(row.estimated_sampling_corrected_total_inorganic_C_mmol)) {
-          outputRow.CO2_estimated_sampling_corrected_total_inorganic_C_mmol =
+          outputRow.CO2_sampling_corrected_total_inorganic_C_mmol =
             row.estimated_sampling_corrected_total_inorganic_C_mmol;
         }
       }
 
       if (gasId === "H2S") {
         if (!valueIsMissing(row.estimated_total_sulfide_mmol)) {
-          outputRow.H2S_estimated_total_sulfide_mmol = row.estimated_total_sulfide_mmol;
+          outputRow.H2S_estimated_dissolved_total_sulfide_mmol =
+            row.estimated_total_sulfide_mmol;
         }
         if (!valueIsMissing(row.estimated_total_sulfide_bottle_mmol)) {
           outputRow.H2S_estimated_total_sulfide_bottle_mmol =
             row.estimated_total_sulfide_bottle_mmol;
         }
         if (!valueIsMissing(row.estimated_sampling_corrected_total_sulfide_mmol)) {
-          outputRow.H2S_estimated_sampling_corrected_total_sulfide_mmol =
+          outputRow.H2S_sampling_corrected_total_sulfide_mmol =
             row.estimated_sampling_corrected_total_sulfide_mmol;
-        }
-        for (const metric of ["H2S_percent", "HS_percent", "S2_percent"]) {
-          if (!valueIsMissing(row[metric])) outputRow[`H2S_${metric}`] = row[metric];
         }
       }
     }

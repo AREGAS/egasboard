@@ -7,7 +7,8 @@ const pendingEvents = [];
 const calculationEvents = [
   "batch-calculation",
   "single-calculation",
-  "gas-dosing"
+  "gas-dosing",
+  "mass-transfer-analysis"
 ];
 
 /*
