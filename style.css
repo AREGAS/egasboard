@@ -14,7 +14,7 @@
   --action: #245f3d;
   --action-hover: #17452d;
   --soft: #eef4f0;
-  --table-head: #f1f6f2;
+  --table-head: #dceadf;
   --equation-bg: #f4f8f5;
   --success-bg: #eef7f1;
   --success-line: #8fbea0;
@@ -170,7 +170,7 @@ th, td {
 }
 th:first-child, td:first-child { text-align: left; }
 th {
-  background: var(--success-bg);
+  background: var(--table-head);
   font-weight: 650;
 }
 tr:last-child td { border-bottom: 0; }
@@ -681,7 +681,7 @@ select {
 
 .tool-example-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 22px;
 }
 
@@ -912,4 +912,44 @@ select {
 
 .tab-panel {
   scroll-margin-top: 18px;
+}
+
+/* Rate & mass-transfer analysis */
+.analysis-card {
+  margin: 18px 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+.analysis-card h3 { margin-top: 0; }
+.compact-form-grid { grid-template-columns: repeat(3, minmax(170px, 1fr)); }
+.transfer-checkbox {
+  align-self: end;
+  min-height: 39px;
+}
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 18px 0;
+}
+.transfer-plot-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 20px;
+}
+.plot-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px;
+  background: var(--surface);
+}
+.plot-card h3 { margin: 0 0 8px; }
+.plot-card svg { width: 100%; height: auto; min-height: 300px; }
+
+@media (max-width: 760px) {
+  .compact-form-grid,
+  .transfer-plot-grid { grid-template-columns: 1fr; }
 }

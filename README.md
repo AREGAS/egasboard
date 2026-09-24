@@ -20,7 +20,7 @@
 <h1 align="center">(E)Gasboard v0.1</h1>
 
 <p align="center">
-  Gas calculations for closed incubations and microcosms.
+  Gas balances, dosing and gas-transfer screening for closed incubations and microcosms.
 </p>
 
 ## Use the tool
@@ -45,9 +45,13 @@ This GitHub repository is primarily provided for **transparency, reproducibility
 - optionally corrects longitudinal batch data for gas and liquid removed during repeated sampling;
 - keeps the measured bottle inventory and sampling-corrected inventory as separate outputs;
 - calculates gas additions required to reach either a dissolved target or an equilibrated headspace target (% or ppmv);
+- fits linear rates from selected Batch time-series intervals and reports slope, direction and R²;
+- screens whether an observed gas-uptake rate can be supported by gas-liquid transfer using a measured/custom kLa or a literature-based vessel × rpm estimate;
+- includes an interactive Explore & predict mode for testing how bottle conditions, headspace concentration, Hcp and kLa change transfer capacity;
+- allows Henry-law values used in the mass-transfer screen to be replaced by user-supplied Hcp and temperature-coefficient values;
 - accepts `.xlsx`, `.csv` and `.tsv` batch input;
 - produces interactive calibration and time-series plots in the browser;
-- exports formatted Excel results and simpler CSV/TSV results.
+- exports formatted Excel results; CSV/TSV can be downloaded as Results only or as a ZIP package with Results, Extended_data, calibration tables and optional rate/mass-transfer output.
 
 For CO2 carbon-balance work, estimated DIC is intentionally kept separate from physical CO2. DIC is strongly pH-dependent, so time-resolved pH measurements are recommended when quantitative DIC or sampling-corrected inorganic-carbon balances are required.
 
@@ -68,6 +72,24 @@ For CO2 and H2S, pH-dependent sampling-corrected reactive-pool balances are also
 
 The entered `liquid_volume_mL` must always be the actual liquid volume present at that measurement. (E)Gasboard does not automatically subtract the liquid sample volume from later rows.
 
+## Rate & mass transfer
+
+The separate **Rate & mass transfer** module can either use a manually entered rate or fit a straight line to a selected Batch time-series interval. The fitted slope is signed: negative values indicate gas uptake and positive values indicate gas production. The current mass-transfer screen applies to **gas uptake**.
+
+For uptake, the module compares the rate with the maximum physical transfer capacity:
+
+```text
+C* = Hcp × p_i
+MTRmax = kLa × V_L × C*
+transfer demand ratio = uptake rate / MTRmax
+```
+
+A measured or directly relevant literature kLa is preferred. If none is available, the interface provides broad vessel × rpm screening values with a ±50% indicative range. Gas-specific literature notes are shown where suitable batch or shaken-vessel data are available. All kLa and Henry Hcp/B values remain user-adjustable.
+
+**Explore & predict** mode recalculates live while bottle conditions, headspace concentration, kLa or Henry-law assumptions are changed. It shows transfer capacity versus kLa and versus headspace gas concentration, together with the minimum kLa required to support the selected uptake rate.
+
+Saved analyses are added to the optional `Rates_mass_transfer` output sheet/table.
+
 ## Output
 
 The Excel export is named, for example:
@@ -78,14 +100,16 @@ EGasboard_results_v0.1.xlsx
 
 and contains:
 
-1. `Results` - concise bottle/time-point output;
-2. `Extended_data` - detailed gas-specific calculation output;
-3. `Plots` - optional PNG time-series plots, including sampling-corrected plots when applicable;
-4. `Calibration_data`;
-5. `Calibration_curves` - optional PNG calibration plots;
-6. `Reference` - calculation and output conventions.
+1. `Results` - compact analysis-ready bottle/time-point output;
+2. `Rates_mass_transfer` - only when an optional rate/mass-transfer analysis has been saved;
+3. `Extended_data` - detailed gas-specific calculations, QC and sampling bookkeeping;
+4. `Plots` - optional PNG time-series plots;
+5. `Calibration_summary`;
+6. `Calibration_fits`;
+7. `Calibration_curves` - optional PNG calibration plots;
+8. `Reference` - calculation and output conventions.
 
-CSV/TSV output currently contains the main Results table. Extended CSV/TSV parity is planned as a small follow-up update.
+For CSV/TSV, users can choose **Results only** or a **Full data package**. The full option downloads a ZIP containing separate Results, Extended_data, calibration and optional Rates_mass_transfer files.
 
 ## Scientific architecture
 
@@ -101,6 +125,8 @@ browser
   |     salinity.js
   |     speciation.js
   |     batch-processing.js
+  |     mass-transfer.js
+  |     rate-analysis.js
   |
   +-- browser table input/output
   |     excel-io.js
@@ -121,7 +147,7 @@ The JavaScript implementation can be checked against numerical fixtures generate
 npm test
 ```
 
-The parity suite covers calibration, bottle calculations, CO2 speciation, salting-out correction, gas dosing and batch processing. Sampling-loss calculations are additionally tested in the batch-processing tests.
+The parity suite covers calibration, bottle calculations, CO2 speciation, salting-out correction, gas dosing, gas-transfer screening and batch processing. Sampling-loss calculations are additionally tested in the batch-processing tests.
 
 For local inspection/development only, the repository can be served with a simple static server, for example:
 
@@ -142,7 +168,8 @@ and opened at `http://localhost:8000`. This is not required to use (E)Gasboard; 
 - total bottle amount is headspace + molecular dissolved gas;
 - estimated DIC and estimated dissolved total sulfide are separate outputs;
 - optional sampling volumes are removed after the measurement on their row;
-- sampling-corrected values are mass-balance inventories, not predictions of the exact concentration in an unsampled bottle.
+- sampling-corrected values are mass-balance inventories, not predictions of the exact concentration in an unsampled bottle;
+- built-in kLa values are literature-based screening estimates for comparable shaken batch systems and can be replaced by a measured or more representative literature value;
 
 Detailed equations and assumptions are available in the **How it works** tab and under `docs/`.
 

@@ -1,7 +1,26 @@
+
+## 2026-09-24 - interactive rates, transfer sandbox and export cleanup
+
+- Simplified the main Results table; detailed calculation/QC fields remain in Extended_data.
+- Added linear rate fitting from selected Batch time-series intervals with signed rate and R².
+- Added interactive Explore & predict mode for gas-transfer capacity versus kLa and headspace concentration.
+- Saved rate/mass-transfer analyses now create an optional Rates_mass_transfer output table.
+- Added Results-only or full ZIP package output for CSV/TSV.
+- Split calibration output into Calibration_summary and Calibration_fits in Excel exports.
+- Expanded gas-specific literature notes while keeping kLa and Henry-law values user-adjustable.
 # Changelog
 
 ## v0.1 - post-release updates
+- UI: added a second How it works flow for rate and gas-transfer screening.
+- UI: slightly darkened table headers in light mode for clearer separation.
 
+- Refined the rate/mass-transfer module with literature-based batch/shaken-vessel kLa notes, updated screening values, and direct CO batch context (Jang et al., 2017).
+- Added user-overridable Henry Hcp and temperature-coefficient B values in the mass-transfer screen.
+- Shortened the homepage introduction and added the rate/mass-transfer option to the main tool description.
+- Added a separate **Rate & mass transfer** module for gas-uptake screening using `MTRmax = kLa × V_L × C*`.
+- Added custom/measured kLa input plus rough vessel × rpm screening estimates for tubes, flasks, small bottles and larger bottles.
+- Added central/low/high transfer-capacity outputs, transfer-demand ratio, minimum required kLa and transfer-risk warnings.
+- Added explicit caveats that built-in kLa values are oxygen-based screening estimates and that 400 rpm values are higher-uncertainty extrapolations.
 - Extended Gas dosing with equilibrated headspace targets in `%` or `ppmv`, while retaining dissolved concentration targets.
 - Added `%`/`ppmv` conversion for initial headspace composition and dosing-mixture composition.
 - Added final headspace concentration, final pressure and dissolved equilibrium outputs to Gas dosing.
@@ -23,7 +42,7 @@
 - Added JavaScript/Python numerical parity tests for calibration, bottle calculations, speciation, salinity, gas dosing and example batch output.
 - Moved Excel reading and workbook creation into the browser.
 - Preserved interactive browser calibration and result plots.
-- Added optional high-resolution PNG plots to downloaded Excel workbooks, with source numbers stored once in Results/Calibration_data.
+- Added optional high-resolution PNG plots to downloaded Excel workbooks, with source numbers stored once in the data sheets.
 - Added GitHub Pages deployment workflow so pushes to `main` can update the public website automatically.
 
 ## v0.1 - HTML/Python web architecture
