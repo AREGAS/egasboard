@@ -2,8 +2,7 @@ import {GAS_PROPERTIES} from "./gas-properties.js";
 import {calculateGasState, calculateRequiredGasAddition} from "./calculations.js";
 import {
   calculateMassTransferAssessment,
-  getKlaScreeningEstimate,
-  transferCapacityMmolPerDay
+  getKlaScreeningEstimate
 } from "./mass-transfer.js";
 import {
   fitTimeSeriesRate,
@@ -63,6 +62,10 @@ function applyTheme(choice) {
   if (batchPayload) {
     renderSelectedPlot();
   }
+
+  if (lastTransferResult) {
+    renderTransferPredictionPlot(lastTransferResult);
+  }
 }
 
 function setupTheme() {
@@ -98,6 +101,7 @@ let metadata = null;
 let batchPayload = null;
 let rateAnalysisRows = [];
 let lastTransferExportRow = null;
+let lastTransferResult = null;
 let transferLiveTimer = null;
 
 function byId(id) {
@@ -582,77 +586,173 @@ function currentTransferPayload(observedRateMmolD) {
   };
 }
 
-function renderTransferPredictionPlots(result) {
+function renderTransferPredictionPlot(result) {
+  const svg = byId("transfer-kla-chart");
+  const explanation = byId("transfer-plot-explanation");
+  if (!svg) return;
+
+  const width = 900;
+  const height = 470;
+  const left = 94;
+  const right = 28;
+  const top = 30;
+  const bottom = 74;
+  const plotWidth = width - left - right;
+  const plotHeight = height - top - bottom;
+
+  svg.innerHTML = "";
+
   const observedRate = Number(result.observed_rate_mmol_d);
-  const maxKla = Math.max(
+  const centralKla = Number(result.kla_central_h);
+  const lowKla = Number(result.kla_low_h);
+  const highKla = Number(result.kla_high_h);
+  const requiredKla = Number(result.minimum_required_kla_h);
+
+  const referenceCapacity = result.kla_source === "estimate"
+    ? Number(result.transfer_capacity_high_mmol_d)
+    : Number(result.transfer_capacity_central_mmol_d);
+
+  const xMax = Math.max(
+    0.05,
+    observedRate * 1.8,
+    Number.isFinite(referenceCapacity) ? referenceCapacity * 1.25 : 0
+  );
+
+  const yReference = result.kla_source === "estimate" ? highKla : centralKla;
+  const yMax = Math.max(
     5,
-    Number(result.kla_high_h || result.kla_central_h) * 2,
-    Number.isFinite(result.minimum_required_kla_h) ? result.minimum_required_kla_h * 1.5 : 0
+    yReference * 1.35,
+    Number.isFinite(requiredKla) ? requiredKla * 1.35 : 0
   );
 
-  const klaValues = [];
-  const capacities = [];
-  const observed = [];
-  for (let index = 0; index <= 24; index += 1) {
-    const kla = maxKla * index / 24;
-    klaValues.push(kla);
-    capacities.push(
-      transferCapacityMmolPerDay(
-        kla,
-        result.liquid_volume_L,
-        result.equilibrium_dissolved_mmol_L
-      )
-    );
-    observed.push(observedRate);
+  const denominator = Number(result.liquid_volume_L) *
+    Number(result.equilibrium_dissolved_mmol_L) * 24.0;
+
+  const xScale = x => left + (x / xMax) * plotWidth;
+  const yScale = y => top + plotHeight - (y / yMax) * plotHeight;
+
+  function add(tag, attrs, text) {
+    const element = document.createElementNS("http://www.w3.org/2000/svg", tag);
+    Object.entries(attrs || {}).forEach(([key, value]) => element.setAttribute(key, value));
+    if (text !== undefined) element.textContent = text;
+    svg.appendChild(element);
+    return element;
   }
 
-  drawMultiLineChart(
-    byId("transfer-kla-chart"),
-    [
-      {label: "Transfer capacity", xValues: klaValues, yValues: capacities},
-      {label: "Rate to compare", xValues: klaValues, yValues: observed}
-    ],
-    "kLa (h⁻¹)",
-    "Rate (mmol/day)"
-  );
+  const textColor = cssVariable("--chart-text") || cssVariable("--text");
+  const mutedColor = cssVariable("--chart-muted") || cssVariable("--muted");
+  const gridColor = cssVariable("--chart-grid");
+  const axisColor = cssVariable("--chart-axis");
+  const curveColor = cssVariable("--chart-primary") || cssVariable("--accent-dark");
+  const currentColor = cssVariable("--chart-current") || "#a0522d";
+  const bandColor = cssVariable("--chart-band") || "#8fbea0";
+  const referenceColor = cssVariable("--chart-reference") || cssVariable("--accent");
 
-  const currentPercent = Number(result.headspace_gas_percent);
-  let maxPercent;
-  if (currentPercent < 1) {
-    maxPercent = Math.max(0.2, currentPercent * 4);
-  } else if (currentPercent < 10) {
-    maxPercent = Math.max(10, currentPercent * 3);
+  // Estimated kLa range, or a single custom kLa reference line.
+  if (result.kla_source === "estimate") {
+    const yTop = yScale(highKla);
+    const yBottom = yScale(lowKla);
+    add("rect", {
+      x: left,
+      y: Math.min(yTop, yBottom),
+      width: plotWidth,
+      height: Math.abs(yBottom - yTop),
+      fill: bandColor,
+      opacity: "0.20"
+    });
+    add("line", {
+      x1:left, y1:yScale(centralKla), x2:left+plotWidth, y2:yScale(centralKla),
+      stroke:referenceColor, "stroke-width":"2", "stroke-dasharray":"8 6"
+    });
   } else {
-    maxPercent = Math.min(100, Math.max(20, currentPercent * 2));
+    add("line", {
+      x1:left, y1:yScale(centralKla), x2:left+plotWidth, y2:yScale(centralKla),
+      stroke:referenceColor, "stroke-width":"2", "stroke-dasharray":"8 6"
+    });
   }
 
-  const gasValues = [];
-  const gasCapacities = [];
-  const gasObserved = [];
-  for (let index = 0; index <= 24; index += 1) {
-    const gasPercent = maxPercent * index / 24;
-    const partialPressurePa = gasPercent / 100.0 * result.pressure_bar_abs * 100000.0;
-    const cStar = result.henry_temperature_corrected * partialPressurePa;
-    gasValues.push(gasPercent);
-    gasCapacities.push(
-      transferCapacityMmolPerDay(
-        result.kla_central_h,
-        result.liquid_volume_L,
-        cStar
-      )
-    );
-    gasObserved.push(observedRate);
+  // Grid and tick labels.
+  for (let i = 0; i <= 4; i += 1) {
+    const fraction = i / 4;
+    const x = left + fraction * plotWidth;
+    const xValue = fraction * xMax;
+    add("line", {x1:x, y1:top, x2:x, y2:top+plotHeight, stroke:gridColor, "stroke-width":"1"});
+    add("text", {
+      x:x, y:top+plotHeight+26, "text-anchor":"middle",
+      fill:mutedColor, "font-size":"14", "font-weight":"500"
+    }, formatNumber(xValue, xMax < 1 ? 3 : 2));
+
+    const y = top + plotHeight - fraction * plotHeight;
+    const yValue = fraction * yMax;
+    add("line", {x1:left, y1:y, x2:left+plotWidth, y2:y, stroke:gridColor, "stroke-width":"1"});
+    add("text", {
+      x:left-12, y:y+5, "text-anchor":"end",
+      fill:mutedColor, "font-size":"14", "font-weight":"500"
+    }, formatNumber(yValue, yMax < 10 ? 2 : 1));
   }
 
-  drawMultiLineChart(
-    byId("transfer-gas-chart"),
-    [
-      {label: "Transfer capacity", xValues: gasValues, yValues: gasCapacities},
-      {label: "Rate to compare", xValues: gasValues, yValues: gasObserved}
-    ],
-    "Headspace gas (%)",
-    "Rate (mmol/day)"
-  );
+  add("line", {x1:left, y1:top+plotHeight, x2:left+plotWidth, y2:top+plotHeight, stroke:axisColor, "stroke-width":"1.8"});
+  add("line", {x1:left, y1:top, x2:left, y2:top+plotHeight, stroke:axisColor, "stroke-width":"1.8"});
+
+  // Required kLa as a function of uptake rate.
+  const points = [];
+  for (let i = 0; i <= 40; i += 1) {
+    const rate = xMax * i / 40;
+    const klaRequired = denominator > 0 ? rate / denominator : 0;
+    points.push(`${xScale(rate)},${yScale(Math.min(klaRequired, yMax))}`);
+  }
+  add("polyline", {
+    points:points.join(" "),
+    fill:"none",
+    stroke:curveColor,
+    "stroke-width":"3",
+    "stroke-linejoin":"round",
+    "stroke-linecap":"round"
+  });
+
+  // Current observed/predicted rate.
+  const currentX = xScale(Math.min(observedRate, xMax));
+  add("line", {
+    x1:currentX, y1:top, x2:currentX, y2:top+plotHeight,
+    stroke:currentColor, "stroke-width":"2.5", "stroke-dasharray":"5 5"
+  });
+
+  if (Number.isFinite(requiredKla) && requiredKla <= yMax) {
+    add("circle", {
+      cx:currentX,
+      cy:yScale(requiredKla),
+      r:"6",
+      fill:currentColor,
+      stroke:cssVariable("--surface"),
+      "stroke-width":"2"
+    });
+  }
+
+  add("text", {
+    x:left + plotWidth/2, y:height-18, "text-anchor":"middle",
+    fill:textColor, "font-size":"15", "font-weight":"600"
+  }, "Gas uptake rate (mmol/day)");
+
+  const yText = add("text", {
+    x:22, y:top + plotHeight/2, "text-anchor":"middle",
+    fill:textColor, "font-size":"15", "font-weight":"600"
+  }, "Required kLa (h⁻¹)");
+  yText.setAttribute("transform", `rotate(-90 22 ${top + plotHeight/2})`);
+
+  if (explanation) {
+    if (result.kla_source === "estimate") {
+      explanation.innerHTML =
+        `<strong>How to read this:</strong> the sloped line is the k<sub>L</sub>a required to sustain each uptake rate. ` +
+        `The shaded band is the rough ${formatNumber(lowKla, 1)}-${formatNumber(highKla, 1)} h<sup>−1</sup> range for the selected vessel and shaking speed; ` +
+        `the dashed horizontal line is the central estimate. The vertical line is your current rate. ` +
+        `If its intersection with the sloped line sits above the band, gas transfer is likely insufficient; inside the band it is uncertain; below the band it is not strongly indicated.`;
+    } else {
+      explanation.innerHTML =
+        `<strong>How to read this:</strong> the sloped line is the k<sub>L</sub>a required to sustain each uptake rate. ` +
+        `The dashed horizontal line is your entered k<sub>L</sub>a (${formatNumber(centralKla, 2)} h<sup>−1</sup>), and the vertical line is your current rate. ` +
+        `If the intersection lies above the horizontal line, the entered k<sub>L</sub>a cannot support that uptake rate.`;
+    }
+  }
 }
 
 function transferExportRow(result, rateFit, sourceLabel) {
@@ -785,9 +885,11 @@ async function calculateTransfer({trackUsage = true, saveAnalysis = true, live =
       html += metric("Minimum required kLa", Number.isFinite(result.minimum_required_kla_h) ? formatNumber(result.minimum_required_kla_h, 2) + " h⁻¹" : "∞");
       html += metric("Henry Hcp used", Number(result.henry_temperature_corrected).toExponential(3) + " mol m⁻³ Pa⁻¹");
       html += metric("Henry source", result.henry_source + (result.henry_overridden ? " (user override)" : ""));
-      renderTransferPredictionPlots(result);
+      lastTransferResult = result;
+      renderTransferPredictionPlot(result);
       byId("transfer-prediction-plots").classList.remove("hidden");
     } else {
+      lastTransferResult = null;
       byId("transfer-prediction-plots").classList.add("hidden");
     }
 
@@ -853,8 +955,8 @@ function updateTransferMode() {
   byId("transfer-calculate").classList.toggle("hidden", explore);
   byId("transfer-save-scenario").classList.toggle("hidden", !explore);
   byId("transfer-mode-note").textContent = explore
-    ? "Change bottle, gas, kLa or Henry-law assumptions to see the predicted transfer capacity update live."
-    : "Fit a rate from Batch data or enter a rate manually. Gas-transfer screening is optional.";
+    ? "Change the inputs below; the prediction and graph update live."
+    : "Fit a Batch interval or enter a rate. Turn off the mass-transfer screen if you only need the rate.";
 
   if (explore) scheduleTransferLiveUpdate();
 }
@@ -1682,16 +1784,15 @@ function updateTransferHenryControls(resetCustomValues = false) {
 
   if (customMode) {
     preview.innerHTML =
-      "Custom Henry values are used with the same temperature correction. " +
-      "Built-in reference for " + gasId + ": Hcp(25 °C) = <strong>" +
+      "Custom Hcp / B used. Built-in " + gasId + " reference: <strong>" +
       Number(gas.hcp_ref).toExponential(3) +
-      " mol m<sup>−3</sup> Pa<sup>−1</sup></strong>, B = " +
+      " mol m<sup>−3</sup> Pa<sup>−1</sup></strong>; B = " +
       formatNumber(gas.B_K, 0) + " K (" + gas.selected_sander_entry + ").";
   } else {
     preview.innerHTML =
-      "Built-in " + gasId + " Henry value: Hcp(25 °C) = <strong>" +
+      gasId + " Hcp(25 °C): <strong>" +
       Number(gas.hcp_ref).toExponential(3) +
-      " mol m<sup>−3</sup> Pa<sup>−1</sup></strong>, B = " +
+      " mol m<sup>−3</sup> Pa<sup>−1</sup></strong>; B = " +
       formatNumber(gas.B_K, 0) + " K (" + gas.selected_sander_entry + ").";
   }
 }
@@ -1715,26 +1816,22 @@ function updateTransferControls() {
       );
 
       preview.innerHTML =
-        "Selected rough k<sub>L</sub>a: <strong>" +
+        "kLa estimate: <strong>" +
         formatNumber(estimate.central_kla_h, 1) +
-        " h<sup>−1</sup></strong> (indicative " +
+        " h<sup>−1</sup></strong> (" +
         formatNumber(estimate.low_kla_h, 1) +
         "-" +
         formatNumber(estimate.high_kla_h, 1) +
-        " h<sup>−1</sup>). " +
-        (estimate.literature_basis ? estimate.literature_basis.note : "") +
+        " h<sup>−1</sup>)." +
         (estimate.literature_basis && estimate.literature_basis.citation
-          ? " Source: " + estimate.literature_basis.citation + "."
+          ? " Literature: " + estimate.literature_basis.citation + "."
           : "") +
-        (estimate.high_speed_extrapolation
-          ? " 400 rpm is treated as a higher-uncertainty extrapolation."
-          : "");
+        (estimate.high_speed_extrapolation ? " 400 rpm is a higher-uncertainty extrapolation." : "");
     } catch (error) {
       preview.textContent = error.message;
     }
   } else {
-    preview.textContent =
-      "Enter a measured or literature-derived kLa directly. No automatic uncertainty range is added.";
+    preview.textContent = "Custom kLa is used as entered.";
   }
 }
 
