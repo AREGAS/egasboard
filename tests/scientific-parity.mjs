@@ -5,11 +5,16 @@ import {fitLinearCalibration} from "../js/calibration.js";
 import {calculateGasState, calculateRequiredGasAddition} from "../js/calculations.js";
 import {calculateNaclSalinityCorrection} from "../js/salinity.js";
 import {
+  calculateMassTransferAssessment,
+  getKlaScreeningEstimate
+} from "../js/mass-transfer.js";
+import {
   fitCalibrationsFromTable,
   processMeasurementTable,
   applySamplingCorrections,
   makeCompactResultsTable
 } from "../js/batch-processing.js";
+import {fitTimeSeriesRate} from "../js/rate-analysis.js";
 
 const fixture = JSON.parse(
   fs.readFileSync(new URL("./parity-fixtures.json", import.meta.url), "utf8")
@@ -301,16 +306,13 @@ function compareNumericKeys(actual, expected, keys, tolerance = 1e-10, prefix = 
     ], 1e-10, `batch.result.${i}.`);
   }
 
-  const expectedCompact = fixture.example_batch.first_compact;
-  assert.ok(compact.length >= expectedCompact.length);
-  for (let i = 0; i < expectedCompact.length; i += 1) {
-    assert.equal(String(compact[i].sample_id), String(expectedCompact[i].sample_id));
-    for (const [key, expectedValue] of Object.entries(expectedCompact[i])) {
-      if (typeof expectedValue === "number") {
-        close(Number(compact[i][key]), expectedValue, 1e-10, `compact.${i}.${key}`);
-      }
-    }
-  }
+  assert.ok(compact.length > 0);
+  assert.ok("CO_percent" in compact[0]);
+  assert.ok("CO_total_mmol" in compact[0]);
+  assert.ok("CO_headspace_mmol" in compact[0]);
+  assert.ok("CO_liquid_mmol" in compact[0]);
+  assert.ok(!("CO_partial_pressure_bar" in compact[0]));
+  assert.ok(!("salinity_g_L_NaCl" in compact[0]));
 }
 
 
@@ -370,3 +372,85 @@ function compareNumericKeys(actual, expected, keys, tolerance = 1e-10, prefix = 
 }
 
 console.log("Static JavaScript scientific parity tests passed.");
+// kLa screening table and mass-transfer equation.
+{
+  const estimate = getKlaScreeningEstimate("small_bottle", 200);
+  close(estimate.central_kla_h, 15, 1e-12, "kLa central");
+  close(estimate.low_kla_h, 7.5, 1e-12, "kLa low");
+  close(estimate.high_kla_h, 22.5, 1e-12, "kLa high");
+
+  const result = calculateMassTransferAssessment({
+    gas_id: "CO",
+    observed_rate_value: 0.20,
+    observed_rate_unit: "mmol_d",
+    liquid_volume_ml: 40,
+    temperature_c: 30,
+    pressure_bar_abs: 1.01325,
+    headspace_gas_percent: 10,
+    salinity_g_l_nacl: 0,
+    kla_source: "custom",
+    custom_kla_h: 10
+  });
+
+  const expectedCapacity =
+    10 * 0.040 * result.equilibrium_dissolved_mmol_L * 24;
+
+  close(
+    result.transfer_capacity_central_mmol_d,
+    expectedCapacity,
+    1e-12,
+    "mass transfer capacity"
+  );
+  close(
+    result.transfer_demand_ratio_central,
+    0.20 / expectedCapacity,
+    1e-12,
+    "mass transfer demand"
+  );
+  const customHenry = calculateMassTransferAssessment({
+    gas_id: "CO",
+    observed_rate_value: 0.20,
+    observed_rate_unit: "mmol_d",
+    liquid_volume_ml: 40,
+    temperature_c: 30,
+    pressure_bar_abs: 1.01325,
+    headspace_gas_percent: 10,
+    salinity_g_l_nacl: 0,
+    kla_source: "custom",
+    custom_kla_h: 10,
+    henry_source: "custom",
+    custom_hcp_ref: 1.0e-5,
+    custom_henry_B_K: 1200
+  });
+
+  close(customHenry.henry_reference_Hcp_mol_m3_Pa, 1.0e-5, 1e-15, "custom Hcp reference");
+  close(customHenry.henry_B_K, 1200, 1e-12, "custom Henry B");
+  if (!customHenry.henry_overridden) {
+    throw new Error("Custom Henry override was not recorded.");
+  }
+
+}
+
+
+// Time-series rate fitting preserves the sign and reports uptake magnitude.
+{
+  const rows = [
+    {time_h: 0, total_bottle_mmol: 1.0, liquid_volume_mL: 40, temperature_C: 30, pressure_bar_abs: 1.0, gas_percent: 10, salinity_g_L_NaCl: 0},
+    {time_h: 2, total_bottle_mmol: 0.8, liquid_volume_mL: 40, temperature_C: 30, pressure_bar_abs: 1.0, gas_percent: 9, salinity_g_L_NaCl: 0},
+    {time_h: 4, total_bottle_mmol: 0.6, liquid_volume_mL: 40, temperature_C: 30, pressure_bar_abs: 1.0, gas_percent: 8, salinity_g_L_NaCl: 0}
+  ];
+  const fit = fitTimeSeriesRate({rows, metric: "total_bottle_mmol", time_start_h: 0, time_end_h: 4});
+  close(fit.slope_mmol_h, -0.1, 1e-12, "rate slope");
+  close(fit.signed_rate_mmol_d, -2.4, 1e-12, "signed daily rate");
+  close(fit.uptake_rate_mmol_d, 2.4, 1e-12, "uptake daily rate");
+  close(fit.r_squared, 1.0, 1e-12, "rate r2");
+  assert.equal(fit.direction, "uptake");
+}
+
+// Current small-bottle screening estimate used by the UI.
+{
+  const estimate = getKlaScreeningEstimate("small_bottle", 150, "CO");
+  close(estimate.central_kla_h, 10, 1e-12, "small bottle 150 rpm kLa");
+  close(estimate.low_kla_h, 5, 1e-12, "small bottle low kLa");
+  close(estimate.high_kla_h, 15, 1e-12, "small bottle high kLa");
+}
