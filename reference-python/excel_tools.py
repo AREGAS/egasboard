@@ -71,11 +71,11 @@ def _write_calibration_curves_sheet(
     writer,
     calibration_data,
 ):
-    """Create a chart-only calibration sheet referencing Calibration_data."""
+    """Create a chart-only calibration sheet referencing Calibration_fits."""
 
     workbook = writer.book
     sheet_name = "Calibration_curves"
-    data_sheet_name = "Calibration_data"
+    data_sheet_name = "Calibration_fits"
     worksheet = workbook.add_worksheet(sheet_name)
     writer.sheets[sheet_name] = worksheet
 
@@ -91,7 +91,7 @@ def _write_calibration_curves_sheet(
     worksheet.write(
         1,
         0,
-        "Observed calibration points and fitted lines. Source values are stored once in Calibration_data.",
+        "Observed calibration points and fitted lines. Source values are stored once in Calibration_fits.",
         subtitle_format,
     )
 
@@ -147,7 +147,7 @@ def _write_calibration_curves_sheet(
             {"type": "scatter", "subtype": "straight_with_markers"}
         )
 
-        # Calibration_data columns:
+        # Calibration_fits columns:
         # A gas_id, B calibration_id, C gas_percent,
         # D peak_area, E fitted_peak_area
         chart.add_series(
@@ -560,6 +560,7 @@ def make_output_excel(
     software_version="v0.1",
     calculation_method_version="v0.1",
     include_plots=True,
+    rate_analyses=None,
 ):
     """Create the downloadable Excel workbook and return its bytes."""
 
@@ -584,6 +585,7 @@ def make_output_excel(
                 "Software version",
                 "Calculation version",
                 "Normal Results layout",
+                "Rates and mass transfer",
                 "Sampling correction",
                 "Sampling-corrected total",
                 "CO2 sampling correction",
@@ -603,6 +605,7 @@ def make_output_excel(
                 software_version,
                 calculation_method_version,
                 "one row per bottle/time point; physical total, headspace and molecular dissolved amount per gas; optional sampling-corrected totals remain separate; CO2 also reports estimated DIC; H2S can report estimated dissolved total sulfide",
+                "optional Rates_mass_transfer sheet when rate or transfer analyses have been saved; fitted rates and physical assumptions remain separate from the main Results table",
                 "optional liquid_sample_mL and headspace_sample_mL volumes are removed after the measurement on that row and affect only subsequent corrected time points",
                 "current total bottle amount plus cumulative gas and molecular dissolved material removed during previous sampling events",
                 "when pH is available, an additional inorganic-carbon balance uses gaseous CO2 plus dissolved DIC; DIC is pH-sensitive",
@@ -615,8 +618,8 @@ def make_output_excel(
                 "ideal gas, Z = 1",
                 "Weisenberger-Schumpe (1996), NaCl-equivalent concentration",
                 "p_i = y_i × P_abs",
-                "Per-gas partial pressure varies by bottle/time point and is reported in Results (bar) and Extended_data (Pa).",
-                "Plots and Calibration_curves are optional; source values are in Results and Calibration_data.",
+                "Per-gas partial pressure varies by bottle/time point and is retained in Extended_data.",
+                "Plots and Calibration_curves are optional; source values are in Results, Extended_data and Calibration_fits.",
             ],
         }
     )
@@ -639,12 +642,21 @@ def make_output_excel(
         workbook = writer.book
 
         compact_results.to_excel(writer, sheet_name="Results", index=False)
+
+        if rate_analyses is not None:
+            rate_table = pd.DataFrame(rate_analyses)
+            if len(rate_table) > 0:
+                rate_table.to_excel(writer, sheet_name="Rates_mass_transfer", index=False)
+        else:
+            rate_table = pd.DataFrame()
+
         extended_results.to_excel(writer, sheet_name="Extended_data", index=False)
 
         if include_plots:
             _write_results_plots_sheet(writer, compact_results)
 
-        calibration_data.to_excel(writer, sheet_name="Calibration_data", index=False)
+        calibration_summary.to_excel(writer, sheet_name="Calibration_summary", index=False)
+        calibration_data.to_excel(writer, sheet_name="Calibration_fits", index=False)
 
         if include_plots:
             _write_calibration_curves_sheet(writer, calibration_data)
@@ -669,11 +681,18 @@ def make_output_excel(
         text_format = workbook.add_format({"num_format": "@"})
 
         # Standard data sheets.
-        for sheet_name, dataframe in [
+        standard_sheets = [
             ("Results", compact_results),
+        ]
+        if len(rate_table) > 0:
+            standard_sheets.append(("Rates_mass_transfer", rate_table))
+        standard_sheets.extend([
             ("Extended_data", extended_results),
-            ("Calibration_data", calibration_data),
-        ]:
+            ("Calibration_summary", calibration_summary),
+            ("Calibration_fits", calibration_data),
+        ])
+
+        for sheet_name, dataframe in standard_sheets:
             worksheet = writer.sheets[sheet_name]
             worksheet.freeze_panes(1, 0)
             worksheet.set_row(0, 22, header_format)

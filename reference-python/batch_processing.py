@@ -1148,15 +1148,10 @@ def make_wide_results_table(results_table):
 
 
 def make_compact_results_table(results_table):
-    """Return a concise wide table for normal user-facing output.
+    """Return the compact, analysis-ready Results table.
 
-    One row represents one bottle/time point. Shared bottle conditions are
-    shown once. For each measured gas, the normal result contains:
-    total bottle amount, headspace amount and liquid amount.
-
-    CO2 and H2S retain the additional chemically relevant outputs.
-    The exhaustive calculation fields remain available separately through
-    make_wide_results_table().
+    Detailed calculation fields, QC, sampling bookkeeping and constants remain
+    available through make_wide_results_table().
     """
 
     if len(results_table) == 0:
@@ -1165,12 +1160,6 @@ def make_compact_results_table(results_table):
     required_internal_columns = {"excel_row", "gas_id"}
     if not required_internal_columns.issubset(set(results_table.columns)):
         return results_table.copy()
-
-    results_table = results_table.copy()
-    if "liquid_sample_mL" not in results_table.columns:
-        results_table["liquid_sample_mL"] = 0.0
-    if "headspace_sample_mL" not in results_table.columns:
-        results_table["headspace_sample_mL"] = 0.0
 
     shared_columns = [
         "excel_row",
@@ -1181,8 +1170,6 @@ def make_compact_results_table(results_table):
         "temperature_C",
         "bottle_volume_mL",
         "liquid_volume_mL",
-        "salinity_g_L_NaCl",
-        "pH",
     ]
 
     source_rows = (
@@ -1191,7 +1178,6 @@ def make_compact_results_table(results_table):
         .sort_values("excel_row")
         .reset_index(drop=True)
     )
-
     compact = source_rows.copy()
 
     gas_order = []
@@ -1205,99 +1191,44 @@ def make_compact_results_table(results_table):
             results_table["gas_id"].astype(str).str.upper() == gas_id
         ].copy().set_index("excel_row")
 
-        # Core output for every gas.
-        # Gas percentage is retained because it is a directly calibrated
-        # measurement and is useful for plotting without duplicating data.
         core_metrics = [
-            ("gas_percent", "gas_percent"),
+            ("gas_percent", "percent"),
             ("total_bottle_mmol", "total_mmol"),
             ("headspace_mmol", "headspace_mmol"),
+            ("molecular_dissolved_mmol", "liquid_mmol"),
         ]
 
-        for source_metric, output_suffix in core_metrics:
-            if source_metric not in gas_rows.columns:
-                continue
-
-            compact[gas_id + "_" + output_suffix] = compact["excel_row"].map(
-                gas_rows[source_metric]
-            )
-
-        liquid_source = None
-        for candidate in [
-            "molecular_dissolved_mmol",
-        ]:
-            if candidate in gas_rows.columns:
-                liquid_source = candidate
-                break
-
-        if liquid_source is not None:
-            compact[gas_id + "_liquid_mmol"] = compact["excel_row"].map(
-                gas_rows[liquid_source]
-            )
+        for source_metric, suffix in core_metrics:
+            if source_metric in gas_rows.columns:
+                compact[f"{gas_id}_{suffix}"] = compact["excel_row"].map(
+                    gas_rows[source_metric]
+                )
 
         if "sampling_corrected_total_mmol" in gas_rows.columns:
             if not gas_rows["sampling_corrected_total_mmol"].isna().all():
-                compact[gas_id + "_sampling_corrected_total_mmol"] = compact[
+                compact[f"{gas_id}_sampling_corrected_total_mmol"] = compact[
                     "excel_row"
                 ].map(gas_rows["sampling_corrected_total_mmol"])
-                compact[gas_id + "_cumulative_sampled_mmol"] = compact[
-                    "excel_row"
-                ].map(gas_rows["cumulative_sampled_molecular_mmol"])
 
-        # Partial pressure varies by bottle/time point, so it belongs with
-        # measurement results rather than static metadata.
-        if "partial_pressure_Pa" in gas_rows.columns:
-            compact[gas_id + "_partial_pressure_bar"] = compact["excel_row"].map(
-                gas_rows["partial_pressure_Pa"] / 100000.0
-            )
-
-        # CO2-specific interpretation.
-        # Keep the normal Results sheet concise: physical CO2 and estimated DIC
-        # are the two main additional mmol quantities. Detailed carbonate
-        # species remain available in Extended_data.
         if gas_id == "CO2":
             optional_metrics = [
-                ("estimated_DIC_mmol", "estimated_DIC_mmol"),
-                (
-                    "estimated_total_inorganic_C_bottle_mmol",
-                    "estimated_total_inorganic_C_bottle_mmol",
-                ),
-                (
-                    "estimated_sampling_corrected_total_inorganic_C_mmol",
-                    "estimated_sampling_corrected_total_inorganic_C_mmol",
-                ),
+                ("estimated_DIC_mmol", "CO2_estimated_DIC_mmol"),
+                ("estimated_total_inorganic_C_bottle_mmol", "CO2_estimated_total_inorganic_C_bottle_mmol"),
+                ("estimated_sampling_corrected_total_inorganic_C_mmol", "CO2_sampling_corrected_total_inorganic_C_mmol"),
             ]
+            for source_metric, output_name in optional_metrics:
+                if source_metric in gas_rows.columns and not gas_rows[source_metric].isna().all():
+                    compact[output_name] = compact["excel_row"].map(gas_rows[source_metric])
 
-            for source_metric, output_suffix in optional_metrics:
-                if source_metric in gas_rows.columns:
-                    if not gas_rows[source_metric].isna().all():
-                        compact[gas_id + "_" + output_suffix] = compact[
-                            "excel_row"
-                        ].map(gas_rows[source_metric])
-
-        # H2S-specific interpretation.
         if gas_id == "H2S":
             optional_metrics = [
-                ("estimated_total_sulfide_mmol", "estimated_total_sulfide_mmol"),
-                (
-                    "estimated_total_sulfide_bottle_mmol",
-                    "estimated_total_sulfide_bottle_mmol",
-                ),
-                (
-                    "estimated_sampling_corrected_total_sulfide_mmol",
-                    "estimated_sampling_corrected_total_sulfide_mmol",
-                ),
-                ("H2S_percent", "H2S_percent"),
-                ("HS_percent", "HS_percent"),
-                ("S2_percent", "S2_percent"),
+                ("estimated_total_sulfide_mmol", "H2S_estimated_dissolved_total_sulfide_mmol"),
+                ("estimated_total_sulfide_bottle_mmol", "H2S_estimated_total_sulfide_bottle_mmol"),
+                ("estimated_sampling_corrected_total_sulfide_mmol", "H2S_sampling_corrected_total_sulfide_mmol"),
             ]
-
-            for source_metric, output_suffix in optional_metrics:
-                if source_metric in gas_rows.columns:
-                    if not gas_rows[source_metric].isna().all():
-                        compact[gas_id + "_" + output_suffix] = compact[
-                            "excel_row"
-                        ].map(gas_rows[source_metric])
+            for source_metric, output_name in optional_metrics:
+                if source_metric in gas_rows.columns and not gas_rows[source_metric].isna().all():
+                    compact[output_name] = compact["excel_row"].map(gas_rows[source_metric])
 
     output_columns = [
         "experiment_id",
@@ -1307,8 +1238,6 @@ def make_compact_results_table(results_table):
         "temperature_C",
         "bottle_volume_mL",
         "liquid_volume_mL",
-        "salinity_g_L_NaCl",
-        "pH",
     ]
 
     for column_name in compact.columns:
@@ -1316,6 +1245,7 @@ def make_compact_results_table(results_table):
             output_columns.append(column_name)
 
     return compact[output_columns]
+
 
 def make_single_gas_plot_table(results_table, sample_id, gas_id):
     """Prepare one sample and one gas for the normal time-series plots."""
