@@ -166,8 +166,7 @@ function classifyCustomKla(demand) {
     return {
       level: "error",
       message:
-        "Observed uptake exceeds the calculated maximum transfer capacity. " +
-        "Check kLa, headspace composition, pressure and the uptake rate; if the inputs are correct, gas transfer limitation is expected."
+        "Observed uptake exceeds the calculated transfer capacity. Gas-transfer limitation is likely; verify kLa and the entered conditions."
     };
   }
 
@@ -175,8 +174,7 @@ function classifyCustomKla(demand) {
     return {
       level: "warning",
       message:
-        "Observed uptake is close to the calculated maximum transfer capacity. " +
-        "Gas transfer limitation is plausible."
+        "Observed uptake is close to the calculated transfer capacity. Gas-transfer limitation is plausible."
     };
   }
 
@@ -184,15 +182,14 @@ function classifyCustomKla(demand) {
     return {
       level: "warning",
       message:
-        "Gas transfer demand is substantial relative to the entered kLa. " +
-        "Transfer limitation cannot be ruled out."
+        "Observed uptake uses a substantial fraction of the entered transfer capacity. Transfer limitation cannot be excluded."
     };
   }
 
   return {
     level: "good",
     message:
-      "Observed uptake is well below the calculated maximum transfer capacity for the entered kLa."
+      "Observed uptake is well below the calculated transfer capacity for the entered kLa."
   };
 }
 
@@ -201,7 +198,7 @@ function classifyEstimatedKla(observedMmolD, lowCapacity, centralCapacity, highC
     return {
       level: "error",
       message:
-        "Observed uptake exceeds even the high rough kLa estimate. If the entered rate and gas conditions are correct, gas transfer limitation is very likely; measure kLa for this system."
+        "Observed uptake exceeds the high kLa screening capacity. Gas-transfer limitation is likely; verify kLa and the entered conditions."
     };
   }
 
@@ -209,7 +206,7 @@ function classifyEstimatedKla(observedMmolD, lowCapacity, centralCapacity, highC
     return {
       level: "warning",
       message:
-        "Observed uptake exceeds the central kLa estimate but not the high estimate. Gas transfer limitation is plausible and depends strongly on the actual vessel-specific kLa."
+        "Observed uptake exceeds the central kLa estimate. Gas-transfer limitation is plausible."
     };
   }
 
@@ -217,14 +214,14 @@ function classifyEstimatedKla(observedMmolD, lowCapacity, centralCapacity, highC
     return {
       level: "warning",
       message:
-        "Observed uptake is supported by the central estimate but not by the low estimate. Gas transfer limitation cannot be ruled out without a measured kLa."
+        "Observed uptake overlaps the kLa screening range. Gas-transfer limitation cannot be excluded."
     };
   }
 
   return {
     level: "good",
     message:
-      "Observed uptake is below the full rough kLa screening range. Strong gas-transfer limitation is not indicated by this estimate."
+      "Observed uptake is below the full kLa screening range. Strong gas-transfer limitation is not indicated."
   };
 }
 
@@ -376,19 +373,10 @@ export function calculateMassTransferAssessment({
   if (temperatureWarning) warnings.push(temperatureWarning);
   if (salinityResult.warning) warnings.push(salinityResult.warning);
 
-  if (klaSource === "estimate") {
+  if (klaSource === "estimate" && estimate.high_speed_extrapolation) {
     warnings.push(
-      "Built-in kLa values are literature-based screening estimates for ordinary unbaffled orbital shaking. Vessel geometry, fill fraction, shaking orbit and medium properties can change the true kLa substantially."
+      "The 400 rpm option is a higher-uncertainty extrapolation."
     );
-
-    if (estimate.high_speed_extrapolation) {
-      warnings.push(
-        "The 400 rpm option is a high-speed extrapolation and is more uncertain than the lower-speed screening values."
-      );
-    }
-
-    const literatureBasis = getKlaLiteratureBasis(gasId);
-    warnings.push(literatureBasis.note);
   }
 
   if (gasId === "CO2" || gasId === "H2S") {

@@ -4,6 +4,7 @@ let analyticsReady = false;
 let analyticsStarted = false;
 const pendingEvents = [];
 
+// Every event in this list also increments the public /calculation-total counter.
 const calculationEvents = [
   "batch-calculation",
   "single-calculation",
