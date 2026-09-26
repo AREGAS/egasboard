@@ -11,6 +11,12 @@
 # Changelog
 
 ## v0.1 - post-release updates
+
+### Final interface polish
+- Moved Batch upload/calculation ahead of detailed input tables and collapsed the examples into an optional input guide.
+- Grouped Single calculation into Gas and Bottle details sections.
+- Shortened homepage feature cards and added jump links within How it works.
+- Improved light-mode table headers and pinned D3 to version 7.9.0.
 - UI: added a second How it works flow for rate and gas-transfer screening.
 - UI: slightly darkened table headers in light mode for clearer separation.
 

@@ -14,7 +14,9 @@
   --action: #245f3d;
   --action-hover: #17452d;
   --soft: #eef4f0;
-  --table-head: #dceadf;
+  --table-head: #c9dfcf;
+  --table-head-text: #17452d;
+  --table-row-hover: #f0f6f2;
   --equation-bg: #f4f8f5;
   --success-bg: #eef7f1;
   --success-line: #8fbea0;
@@ -48,6 +50,8 @@ html[data-theme="dark"] {
   --action-hover: #2f764d;
   --soft: #172019;
   --table-head: #18211b;
+  --table-head-text: #dce9df;
+  --table-row-hover: #121a15;
   --equation-bg: #151f18;
   --success-bg: #14251a;
   --success-line: #457759;
@@ -183,8 +187,12 @@ th, td {
 th:first-child, td:first-child { text-align: left; }
 th {
   background: var(--table-head);
-  font-weight: 650;
+  color: var(--table-head-text);
+  font-weight: 700;
+  border-bottom-color: var(--strong-line);
 }
+tbody tr { transition: background-color .12s ease; }
+tbody tr:hover { background: var(--table-row-hover); }
 tr:last-child td { border-bottom: 0; }
 
 .download-row {
@@ -1199,4 +1207,76 @@ html[data-theme="dark"] {
   .transfer-plot-single {
     padding: 12px 10px 10px;
   }
+}
+
+
+/* Final UI polish: common workflows stay compact and easy to scan. */
+.batch-upload-card { margin-top: 16px; }
+.batch-example-cta {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 8px 14px;
+  align-items: center;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+.batch-example-cta > span { color: var(--muted); font-size: .9rem; }
+.compact-download-row { margin: 0; }
+.input-guide {
+  margin-top: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  overflow: hidden;
+}
+.input-guide summary {
+  cursor: pointer;
+  padding: 12px 15px;
+  color: var(--accent-dark);
+  font-weight: 700;
+  background: var(--surface-2);
+  user-select: none;
+}
+.input-guide summary:hover { background: var(--soft); }
+.input-guide-content { padding: 4px 16px 16px; }
+.single-form { display: grid; gap: 16px; margin-bottom: 16px; }
+.single-section {
+  padding: 15px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+.single-section-title {
+  margin-bottom: 10px;
+  color: var(--accent-dark);
+  font-size: .88rem;
+  font-weight: 750;
+  letter-spacing: .01em;
+}
+.single-grid { grid-template-columns: repeat(2, minmax(150px, 1fr)); gap: 12px; }
+.single-grid-details { grid-template-columns: repeat(3, minmax(150px, 1fr)); }
+.methods-jump { display: flex; flex-wrap: wrap; gap: 7px; margin: 14px 0 20px; }
+.methods-jump a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--accent-dark);
+  font-size: .84rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+.methods-jump a:hover { background: var(--soft); border-color: var(--strong-line); }
+.method-anchor { scroll-margin-top: 18px; }
+@media (max-width: 900px) {
+  .batch-example-cta { grid-template-columns: 1fr; }
+  .batch-example-cta .download-row { margin-top: 2px; }
+  .single-grid-details { grid-template-columns: repeat(2, minmax(140px, 1fr)); }
+}
+@media (max-width: 620px) {
+  .single-grid, .single-grid-details { grid-template-columns: 1fr; }
 }
