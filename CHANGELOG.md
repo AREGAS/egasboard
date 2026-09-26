@@ -1,3 +1,9 @@
+### UI refinement
+- Stacked the rate/mass-transfer controls vertically to prevent crowded labels and inputs.
+- Made the How it works jump buttons explicitly navigational and collapsed the large parameter/unit reference table.
+- Strengthened the light-theme green hierarchy for navigation controls and table headers.
+- Rebuilt Batch and calibration plots with the same D3/SVG visual language as the rate/mass-transfer plot.
+
 
 ## 2026-09-24 - interactive rates, transfer sandbox and export cleanup
 
@@ -11,6 +17,12 @@
 # Changelog
 
 ## v0.1 - post-release updates
+
+### Final interface polish
+- Moved Batch upload/calculation ahead of detailed input tables and collapsed the examples into an optional input guide.
+- Grouped Single calculation into Gas and Bottle details sections.
+- Shortened homepage feature cards and added jump links within How it works.
+- Improved light-mode table headers and pinned D3 to version 7.9.0.
 - UI: added a second How it works flow for rate and gas-transfer screening.
 - UI: slightly darkened table headers in light mode for clearer separation.
 
