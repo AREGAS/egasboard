@@ -61,6 +61,7 @@ function applyTheme(choice) {
 
   if (batchPayload) {
     renderSelectedPlot();
+    renderCalibrationPlot();
   }
 
   if (lastTransferResult) {
@@ -1239,106 +1240,130 @@ function renderCalibrationPlot() {
 }
 
 function drawCalibrationChart(svg, xValues, measuredValues, fittedValues) {
+  svg.innerHTML = "";
+  if (!xValues.length || !window.d3) return;
+
+  const d3 = window.d3;
   const width = 900;
   const height = 430;
-  const left = 82;
-  const right = 24;
-  const top = 24;
-  const bottom = 62;
-  const plotWidth = width - left - right;
-  const plotHeight = height - top - bottom;
+  const margin = {top: 30, right: 34, bottom: 64, left: 78};
+  const innerWidth = width - margin.left - margin.right;
+  const innerHeight = height - margin.top - margin.bottom;
 
-  svg.innerHTML = "";
-  if (!xValues.length) return;
+  const textColor = cssVariable("--chart-text") || cssVariable("--text");
+  const mutedColor = cssVariable("--chart-muted") || cssVariable("--muted");
+  const gridColor = cssVariable("--chart-grid");
+  const axisColor = cssVariable("--chart-axis");
+  const lineColor = cssVariable("--chart-primary") || cssVariable("--accent");
+  const pointColor = cssVariable("--chart-current") || cssVariable("--text");
 
-  const xMin = 0;
-  const xMaxRaw = Math.max(...xValues);
-  const xMax = xMaxRaw <= 0 ? 1 : xMaxRaw * 1.05;
-
+  const xMaxRaw = Math.max(...xValues, 0);
   const yMaxRaw = Math.max(...measuredValues, ...fittedValues, 0);
-  const yMin = 0;
-  const yMax = yMaxRaw <= 0 ? 1 : yMaxRaw * 1.08;
+  const xMax = xMaxRaw > 0 ? xMaxRaw * 1.06 : 1;
+  const yMax = yMaxRaw > 0 ? yMaxRaw * 1.10 : 1;
 
-  const xScale = x => left + ((x - xMin) / (xMax - xMin)) * plotWidth;
-  const yScale = y => top + plotHeight - ((y - yMin) / (yMax - yMin)) * plotHeight;
+  const xScale = d3.scaleLinear().domain([0, xMax]).range([0, innerWidth]);
+  const yScale = d3.scaleLinear().domain([0, yMax]).range([innerHeight, 0]);
 
-  function add(tag, attrs, text) {
-    const element = document.createElementNS("http://www.w3.org/2000/svg", tag);
-    Object.entries(attrs || {}).forEach(([key, value]) => element.setAttribute(key, value));
-    if (text !== undefined) element.textContent = text;
-    svg.appendChild(element);
-    return element;
-  }
+  const root = d3.select(svg)
+    .attr("viewBox", `0 0 ${width} ${height}`)
+    .attr("preserveAspectRatio", "xMidYMid meet");
 
-  for (let i = 0; i <= 5; i++) {
-    const fraction = i / 5;
+  const plot = root.append("g")
+    .attr("transform", `translate(${margin.left},${margin.top})`);
 
-    const x = left + fraction * plotWidth;
-    const xv = xMin + fraction * (xMax - xMin);
-    add("line", {
-      x1:x, y1:top, x2:x, y2:top+plotHeight,
-      stroke:cssVariable("--chart-grid"), "stroke-width":"1"
-    });
-    add("text", {
-      x:x, y:top+plotHeight+24, "text-anchor":"middle",
-      fill:cssVariable("--muted"), "font-size":"12"
-    }, xv.toFixed(2));
+  plot.append("g")
+    .attr("transform", `translate(0,${innerHeight})`)
+    .call(d3.axisBottom(xScale).ticks(5).tickSize(-innerHeight).tickFormat(() => ""))
+    .call(g => g.selectAll("line").attr("stroke", gridColor))
+    .call(g => g.select(".domain").remove());
 
-    const y = top + plotHeight - fraction * plotHeight;
-    const yv = yMin + fraction * (yMax - yMin);
-    add("line", {
-      x1:left, y1:y, x2:left+plotWidth, y2:y,
-      stroke:cssVariable("--chart-grid"), "stroke-width":"1"
-    });
-    add("text", {
-      x:left-10, y:y+4, "text-anchor":"end",
-      fill:cssVariable("--muted"), "font-size":"12"
-    }, yv.toFixed(1));
-  }
+  plot.append("g")
+    .call(d3.axisLeft(yScale).ticks(5).tickSize(-innerWidth).tickFormat(() => ""))
+    .call(g => g.selectAll("line").attr("stroke", gridColor))
+    .call(g => g.select(".domain").remove());
 
-  add("line", {
-    x1:left, y1:top+plotHeight, x2:left+plotWidth, y2:top+plotHeight,
-    stroke:cssVariable("--chart-axis"), "stroke-width":"1.6"
-  });
-  add("line", {
-    x1:left, y1:top, x2:left, y2:top+plotHeight,
-    stroke:cssVariable("--chart-axis"), "stroke-width":"1.6"
-  });
+  plot.append("g")
+    .attr("transform", `translate(0,${innerHeight})`)
+    .call(d3.axisBottom(xScale).ticks(5).tickFormat(d3.format("~g")))
+    .call(g => g.selectAll("text").attr("fill", mutedColor).style("font-size", "12px"))
+    .call(g => g.selectAll("line").attr("stroke", axisColor))
+    .call(g => g.select(".domain").attr("stroke", axisColor).attr("stroke-width", 1.6));
 
-  add("text", {
-    x:left + plotWidth/2, y:height-16, "text-anchor":"middle",
-    fill:cssVariable("--text"), "font-size":"13"
-  }, "Gas concentration (%)");
+  plot.append("g")
+    .call(d3.axisLeft(yScale).ticks(5).tickFormat(d3.format("~g")))
+    .call(g => g.selectAll("text").attr("fill", mutedColor).style("font-size", "12px"))
+    .call(g => g.selectAll("line").attr("stroke", axisColor))
+    .call(g => g.select(".domain").attr("stroke", axisColor).attr("stroke-width", 1.6));
 
-  const yText = add("text", {
-    x:18, y:top + plotHeight/2, "text-anchor":"middle",
-    fill:cssVariable("--text"), "font-size":"13"
-  }, "Peak area");
-  yText.setAttribute("transform", `rotate(-90 18 ${top + plotHeight/2})`);
-
-  const sorted = xValues.map((x, i) => ({x, y:fittedValues[i]}))
+  const fitData = xValues.map((x, index) => ({x, y: fittedValues[index]}))
     .sort((a, b) => a.x - b.x);
 
-  add("polyline", {
-    points: sorted.map(p => `${xScale(p.x)},${yScale(p.y)}`).join(" "),
-    fill: "none",
-    stroke: cssVariable("--accent"),
-    "stroke-width": "2.4",
-    "stroke-linecap": "round"
-  });
+  const line = d3.line()
+    .x(d => xScale(d.x))
+    .y(d => yScale(d.y));
 
-  xValues.forEach((x, i) => {
-    const point = add("circle", {
-      cx:xScale(x),
-      cy:yScale(measuredValues[i]),
-      r:5,
-      fill:cssVariable("--text")
-    });
+  plot.append("path")
+    .datum(fitData)
+    .attr("fill", "none")
+    .attr("stroke", lineColor)
+    .attr("stroke-width", 3)
+    .attr("stroke-linecap", "round")
+    .attr("d", line);
 
-    const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
-    title.textContent = `Gas %: ${x}; peak area: ${measuredValues[i]}`;
-    point.appendChild(title);
-  });
+  const measuredData = xValues.map((x, index) => ({
+    x,
+    y: measuredValues[index]
+  }));
+
+  const points = plot.selectAll("circle.calibration-point")
+    .data(measuredData)
+    .enter()
+    .append("circle")
+    .attr("class", "chart-point calibration-point")
+    .attr("cx", d => xScale(d.x))
+    .attr("cy", d => yScale(d.y))
+    .attr("r", 5.5)
+    .attr("fill", pointColor)
+    .attr("stroke", cssVariable("--surface"))
+    .attr("stroke-width", 2);
+
+  points.append("title")
+    .text(d => `Gas concentration: ${formatNumber(d.x, 4)}%; peak area: ${formatNumber(d.y, 4)}`);
+
+  const legend = root.append("g").attr("transform", `translate(${margin.left},14)`);
+  legend.append("line")
+    .attr("x1", 0).attr("x2", 22).attr("y1", 6).attr("y2", 6)
+    .attr("stroke", lineColor).attr("stroke-width", 3);
+  legend.append("text")
+    .attr("x", 28).attr("y", 10).attr("fill", textColor)
+    .style("font-size", "12px").style("font-weight", "600")
+    .text("linear fit");
+  legend.append("circle")
+    .attr("cx", 104).attr("cy", 6).attr("r", 4.5).attr("fill", pointColor);
+  legend.append("text")
+    .attr("x", 115).attr("y", 10).attr("fill", textColor)
+    .style("font-size", "12px").style("font-weight", "600")
+    .text("measured");
+
+  root.append("text")
+    .attr("x", margin.left + innerWidth / 2)
+    .attr("y", height - 16)
+    .attr("text-anchor", "middle")
+    .attr("fill", textColor)
+    .style("font-size", "13px")
+    .style("font-weight", "600")
+    .text("Gas concentration (%)");
+
+  root.append("text")
+    .attr("x", 20)
+    .attr("y", margin.top + innerHeight / 2)
+    .attr("text-anchor", "middle")
+    .attr("fill", textColor)
+    .style("font-size", "13px")
+    .style("font-weight", "600")
+    .attr("transform", `rotate(-90 20 ${margin.top + innerHeight / 2})`)
+    .text("Peak area");
 }
 
 function populatePlotSelectors() {
@@ -1501,214 +1526,261 @@ function renderSelectedPlot() {
 }
 
 function drawMultiLineChart(svg, series, xLabel, yLabel) {
-  const width = 900;
-  const height = 430;
-  const left = 82;
-  const right = 24;
-  const top = 24;
-  const bottom = 72;
-  const plotWidth = width - left - right;
-  const plotHeight = height - top - bottom;
-
   svg.innerHTML = "";
+  if (!window.d3) return;
 
+  const d3 = window.d3;
   const usableSeries = series.filter(item => item.xValues.length > 0);
   if (!usableSeries.length) return;
+
+  const width = 900;
+  const height = 430;
+  const margin = {top: 34, right: 34, bottom: 64, left: 82};
+  const innerWidth = width - margin.left - margin.right;
+  const innerHeight = height - margin.top - margin.bottom;
+
+  const textColor = cssVariable("--chart-text") || cssVariable("--text");
+  const mutedColor = cssVariable("--chart-muted") || cssVariable("--muted");
+  const gridColor = cssVariable("--chart-grid");
+  const axisColor = cssVariable("--chart-axis");
+  const primaryColor = cssVariable("--chart-primary") || cssVariable("--accent");
 
   const allX = usableSeries.flatMap(item => item.xValues);
   const allY = usableSeries.flatMap(item => item.yValues).filter(Number.isFinite);
 
-  const xMin = Math.min(0, ...allX);
+  const xMinRaw = Math.min(...allX);
   const xMaxRaw = Math.max(...allX);
-  const xMax = xMaxRaw === xMin ? xMin + 1 : xMaxRaw;
-
   const yMinRaw = Math.min(...allY);
   const yMaxRaw = Math.max(...allY);
+
+  const xMin = xMinRaw >= 0 ? 0 : xMinRaw;
+  const xMax = xMaxRaw === xMin ? xMin + 1 : xMaxRaw;
   const yMin = yMinRaw >= 0 ? 0 : yMinRaw;
   const yMax = yMaxRaw === yMin ? yMin + 1 : yMaxRaw * 1.08;
 
-  const xScale = x => left + ((x - xMin) / (xMax - xMin)) * plotWidth;
-  const yScale = y => top + plotHeight - ((y - yMin) / (yMax - yMin)) * plotHeight;
+  const xScale = d3.scaleLinear().domain([xMin, xMax]).range([0, innerWidth]);
+  const yScale = d3.scaleLinear().domain([yMin, yMax]).range([innerHeight, 0]);
+
+  const root = d3.select(svg)
+    .attr("viewBox", `0 0 ${width} ${height}`)
+    .attr("preserveAspectRatio", "xMidYMid meet");
+  const plot = root.append("g")
+    .attr("transform", `translate(${margin.left},${margin.top})`);
+
+  plot.append("g")
+    .attr("transform", `translate(0,${innerHeight})`)
+    .call(d3.axisBottom(xScale).ticks(5).tickSize(-innerHeight).tickFormat(() => ""))
+    .call(g => g.selectAll("line").attr("stroke", gridColor))
+    .call(g => g.select(".domain").remove());
+
+  plot.append("g")
+    .call(d3.axisLeft(yScale).ticks(5).tickSize(-innerWidth).tickFormat(() => ""))
+    .call(g => g.selectAll("line").attr("stroke", gridColor))
+    .call(g => g.select(".domain").remove());
+
+  plot.append("g")
+    .attr("transform", `translate(0,${innerHeight})`)
+    .call(d3.axisBottom(xScale).ticks(5).tickFormat(d3.format("~g")))
+    .call(g => g.selectAll("text").attr("fill", mutedColor).style("font-size", "12px"))
+    .call(g => g.selectAll("line").attr("stroke", axisColor))
+    .call(g => g.select(".domain").attr("stroke", axisColor).attr("stroke-width", 1.6));
+
+  plot.append("g")
+    .call(d3.axisLeft(yScale).ticks(5).tickFormat(d3.format("~g")))
+    .call(g => g.selectAll("text").attr("fill", mutedColor).style("font-size", "12px"))
+    .call(g => g.selectAll("line").attr("stroke", axisColor))
+    .call(g => g.select(".domain").attr("stroke", axisColor).attr("stroke-width", 1.6));
 
   const palette = [
-    "#245f3d", "#7b1e2b", "#4169a1", "#8a6d1f", "#76518e",
-    "#2f7f7f", "#9a4f2a", "#5f6f3a", "#4c6f91"
+    primaryColor,
+    "#4e79a7",
+    "#e15759",
+    "#b07aa1",
+    "#f28e2b",
+    "#76b7b2",
+    "#9c755f",
+    "#59a14f",
+    "#edc948"
   ];
 
-  function add(tag, attrs, text) {
-    const element = document.createElementNS("http://www.w3.org/2000/svg", tag);
-    Object.entries(attrs || {}).forEach(([key, value]) => element.setAttribute(key, value));
-    if (text !== undefined) element.textContent = text;
-    svg.appendChild(element);
-    return element;
-  }
-
-  for (let i = 0; i <= 5; i++) {
-    const fraction = i / 5;
-
-    const x = left + fraction * plotWidth;
-    const xValue = xMin + fraction * (xMax - xMin);
-    add("line", {
-      x1:x, y1:top, x2:x, y2:top+plotHeight,
-      stroke:cssVariable("--chart-grid"), "stroke-width":"1"
-    });
-    add("text", {
-      x:x, y:top+plotHeight+24, "text-anchor":"middle",
-      fill:cssVariable("--muted"), "font-size":"12"
-    }, xValue.toFixed(1));
-
-    const y = top + plotHeight - fraction * plotHeight;
-    const yValue = yMin + fraction * (yMax - yMin);
-    add("line", {
-      x1:left, y1:y, x2:left+plotWidth, y2:y,
-      stroke:cssVariable("--chart-grid"), "stroke-width":"1"
-    });
-    add("text", {
-      x:left-10, y:y+4, "text-anchor":"end",
-      fill:cssVariable("--muted"), "font-size":"12"
-    }, yValue.toFixed(3));
-  }
-
-  add("text", {
-    x:left + plotWidth/2, y:height-18, "text-anchor":"middle",
-    fill:cssVariable("--text"), "font-size":"13"
-  }, xLabel);
-
-  const yText = add("text", {
-    x:18, y:top + plotHeight/2, "text-anchor":"middle",
-    fill:cssVariable("--text"), "font-size":"13"
-  }, yLabel);
-  yText.setAttribute("transform", `rotate(-90 18 ${top + plotHeight/2})`);
+  const legend = root.append("g").attr("transform", `translate(${margin.left},14)`);
+  let legendX = 0;
 
   usableSeries.forEach((item, seriesIndex) => {
     const color = palette[seriesIndex % palette.length];
+    const data = item.xValues.map((x, index) => ({
+      x,
+      y: item.yValues[index]
+    }));
 
-    const points = item.xValues
-      .map((x, index) => `${xScale(x)},${yScale(item.yValues[index])}`)
-      .join(" ");
+    const line = d3.line()
+      .x(d => xScale(d.x))
+      .y(d => yScale(d.y))
+      .curve(d3.curveMonotoneX);
 
-    add("polyline", {
-      points,
-      fill: "none",
-      stroke: color,
-      "stroke-width": "2.4",
-      "stroke-linejoin": "round",
-      "stroke-linecap": "round"
-    });
+    plot.append("path")
+      .datum(data)
+      .attr("fill", "none")
+      .attr("stroke", color)
+      .attr("stroke-width", 2.7)
+      .attr("stroke-linecap", "round")
+      .attr("stroke-linejoin", "round")
+      .attr("d", line);
 
-    item.xValues.forEach((x, index) => {
-      const circle = add("circle", {
-        cx:xScale(x),
-        cy:yScale(item.yValues[index]),
-        r:4,
-        fill:color
-      });
+    const points = plot.selectAll(`circle.series-${seriesIndex}`)
+      .data(data)
+      .enter()
+      .append("circle")
+      .attr("class", `chart-point series-${seriesIndex}`)
+      .attr("cx", d => xScale(d.x))
+      .attr("cy", d => yScale(d.y))
+      .attr("r", 4.5)
+      .attr("fill", color)
+      .attr("stroke", cssVariable("--surface"))
+      .attr("stroke-width", 1.6);
 
-      const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
-      title.textContent =
-        `${item.label}; ${xLabel}: ${x}; ${yLabel}: ${item.yValues[index].toFixed(6)}`;
-      circle.appendChild(title);
-    });
+    points.append("title")
+      .text(d => `${item.label}; ${xLabel}: ${formatNumber(d.x, 4)}; ${yLabel}: ${formatNumber(d.y, 6)}`);
 
-    const legendX = left + seriesIndex * 92;
-    const legendY = height - 44;
-    add("line", {
-      x1:legendX, y1:legendY, x2:legendX+18, y2:legendY,
-      stroke:color, "stroke-width":"3"
-    });
-    add("text", {
-      x:legendX+24, y:legendY+4,
-      fill:cssVariable("--text"), "font-size":"12"
-    }, item.label);
+    const itemGroup = legend.append("g").attr("transform", `translate(${legendX},0)`);
+    itemGroup.append("line")
+      .attr("x1", 0).attr("x2", 20).attr("y1", 6).attr("y2", 6)
+      .attr("stroke", color).attr("stroke-width", 3);
+    itemGroup.append("text")
+      .attr("x", 26).attr("y", 10).attr("fill", textColor)
+      .style("font-size", "12px").style("font-weight", "600")
+      .text(item.label);
+    legendX += 44 + item.label.length * 7.2;
   });
+
+  root.append("text")
+    .attr("x", margin.left + innerWidth / 2)
+    .attr("y", height - 16)
+    .attr("text-anchor", "middle")
+    .attr("fill", textColor)
+    .style("font-size", "13px")
+    .style("font-weight", "600")
+    .text(xLabel);
+
+  root.append("text")
+    .attr("x", 20)
+    .attr("y", margin.top + innerHeight / 2)
+    .attr("text-anchor", "middle")
+    .attr("fill", textColor)
+    .style("font-size", "13px")
+    .style("font-weight", "600")
+    .attr("transform", `rotate(-90 20 ${margin.top + innerHeight / 2})`)
+    .text(yLabel);
 }
 
 function drawLineChart(svg, xValues, yValues, xLabel, yLabel) {
+  svg.innerHTML = "";
+  if (!xValues.length || !window.d3) return;
+
+  const d3 = window.d3;
   const width = 900;
   const height = 430;
-  const left = 82;
-  const right = 24;
-  const top = 24;
-  const bottom = 62;
-  const plotWidth = width - left - right;
-  const plotHeight = height - top - bottom;
+  const margin = {top: 30, right: 34, bottom: 64, left: 82};
+  const innerWidth = width - margin.left - margin.right;
+  const innerHeight = height - margin.top - margin.bottom;
 
-  svg.innerHTML = "";
+  const textColor = cssVariable("--chart-text") || cssVariable("--text");
+  const mutedColor = cssVariable("--chart-muted") || cssVariable("--muted");
+  const gridColor = cssVariable("--chart-grid");
+  const axisColor = cssVariable("--chart-axis");
+  const lineColor = cssVariable("--chart-primary") || cssVariable("--accent");
 
-  if (!xValues.length) return;
-
-  const xMin = Math.min(0, ...xValues);
+  const xMinRaw = Math.min(...xValues);
   const xMaxRaw = Math.max(...xValues);
-  const xMax = xMaxRaw === xMin ? xMin + 1 : xMaxRaw;
-
   const yMinRaw = Math.min(...yValues);
   const yMaxRaw = Math.max(...yValues);
+
+  const xMin = xMinRaw >= 0 ? 0 : xMinRaw;
+  const xMax = xMaxRaw === xMin ? xMin + 1 : xMaxRaw;
   const yMin = yMinRaw >= 0 ? 0 : yMinRaw;
   const yMax = yMaxRaw === yMin ? yMin + 1 : yMaxRaw * 1.08;
 
-  const xScale = x => left + ((x - xMin) / (xMax - xMin)) * plotWidth;
-  const yScale = y => top + plotHeight - ((y - yMin) / (yMax - yMin)) * plotHeight;
+  const xScale = d3.scaleLinear().domain([xMin, xMax]).range([0, innerWidth]);
+  const yScale = d3.scaleLinear().domain([yMin, yMax]).range([innerHeight, 0]);
 
-  function add(tag, attrs, text) {
-    const element = document.createElementNS("http://www.w3.org/2000/svg", tag);
-    Object.entries(attrs || {}).forEach(([key, value]) => element.setAttribute(key, value));
-    if (text !== undefined) element.textContent = text;
-    svg.appendChild(element);
-    return element;
-  }
+  const root = d3.select(svg)
+    .attr("viewBox", `0 0 ${width} ${height}`)
+    .attr("preserveAspectRatio", "xMidYMid meet");
+  const plot = root.append("g")
+    .attr("transform", `translate(${margin.left},${margin.top})`);
 
-  // Grid and tick labels.
-  for (let i = 0; i <= 5; i++) {
-    const fraction = i / 5;
+  plot.append("g")
+    .attr("transform", `translate(0,${innerHeight})`)
+    .call(d3.axisBottom(xScale).ticks(5).tickSize(-innerHeight).tickFormat(() => ""))
+    .call(g => g.selectAll("line").attr("stroke", gridColor))
+    .call(g => g.select(".domain").remove());
 
-    const x = left + fraction * plotWidth;
-    const xValue = xMin + fraction * (xMax - xMin);
-    add("line", {x1:x, y1:top, x2:x, y2:top+plotHeight, stroke:cssVariable("--chart-grid"), "stroke-width":"1"});
-    add("text", {x:x, y:top+plotHeight+24, "text-anchor":"middle", fill:cssVariable("--muted"), "font-size":"12"}, xValue.toFixed(1));
+  plot.append("g")
+    .call(d3.axisLeft(yScale).ticks(5).tickSize(-innerWidth).tickFormat(() => ""))
+    .call(g => g.selectAll("line").attr("stroke", gridColor))
+    .call(g => g.select(".domain").remove());
 
-    const y = top + plotHeight - fraction * plotHeight;
-    const yValue = yMin + fraction * (yMax - yMin);
-    add("line", {x1:left, y1:y, x2:left+plotWidth, y2:y, stroke:cssVariable("--chart-grid"), "stroke-width":"1"});
-    add("text", {x:left-10, y:y+4, "text-anchor":"end", fill:cssVariable("--muted"), "font-size":"12"}, yValue.toFixed(3));
-  }
+  plot.append("g")
+    .attr("transform", `translate(0,${innerHeight})`)
+    .call(d3.axisBottom(xScale).ticks(5).tickFormat(d3.format("~g")))
+    .call(g => g.selectAll("text").attr("fill", mutedColor).style("font-size", "12px"))
+    .call(g => g.selectAll("line").attr("stroke", axisColor))
+    .call(g => g.select(".domain").attr("stroke", axisColor).attr("stroke-width", 1.6));
 
-  // Strong zero axes.
-  if (xMin <= 0 && xMax >= 0) {
-    const x0 = xScale(0);
-    add("line", {x1:x0, y1:top, x2:x0, y2:top+plotHeight, stroke:cssVariable("--chart-axis"), "stroke-width":"1.6"});
-  }
-  if (yMin <= 0 && yMax >= 0) {
-    const y0 = yScale(0);
-    add("line", {x1:left, y1:y0, x2:left+plotWidth, y2:y0, stroke:cssVariable("--chart-axis"), "stroke-width":"1.6"});
-  }
+  plot.append("g")
+    .call(d3.axisLeft(yScale).ticks(5).tickFormat(d3.format("~g")))
+    .call(g => g.selectAll("text").attr("fill", mutedColor).style("font-size", "12px"))
+    .call(g => g.selectAll("line").attr("stroke", axisColor))
+    .call(g => g.select(".domain").attr("stroke", axisColor).attr("stroke-width", 1.6));
 
-  // Axis labels.
-  add("text", {x:left + plotWidth/2, y:height-16, "text-anchor":"middle", fill:cssVariable("--text"), "font-size":"13"}, xLabel);
-  const yText = add("text", {x:18, y:top + plotHeight/2, "text-anchor":"middle", fill:cssVariable("--text"), "font-size":"13"}, yLabel);
-  yText.setAttribute("transform", `rotate(-90 18 ${top + plotHeight/2})`);
+  const data = xValues.map((x, index) => ({x, y: yValues[index]}));
+  const line = d3.line()
+    .x(d => xScale(d.x))
+    .y(d => yScale(d.y))
+    .curve(d3.curveMonotoneX);
 
-  // Line.
-  const points = xValues.map((x, index) => `${xScale(x)},${yScale(yValues[index])}`).join(" ");
-  add("polyline", {
-    points: points,
-    fill: "none",
-    stroke: cssVariable("--accent"),
-    "stroke-width": "2.5",
-    "stroke-linejoin": "round",
-    "stroke-linecap": "round"
-  });
+  plot.append("path")
+    .datum(data)
+    .attr("fill", "none")
+    .attr("stroke", lineColor)
+    .attr("stroke-width", 3)
+    .attr("stroke-linecap", "round")
+    .attr("stroke-linejoin", "round")
+    .attr("d", line);
 
-  xValues.forEach((x, index) => {
-    const circle = add("circle", {
-      cx: xScale(x),
-      cy: yScale(yValues[index]),
-      r: 4.5,
-      fill: cssVariable("--accent")
-    });
-    const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
-    title.textContent = `${xLabel}: ${x}; ${yLabel}: ${yValues[index].toFixed(6)}`;
-    circle.appendChild(title);
-  });
+  const points = plot.selectAll("circle.batch-point")
+    .data(data)
+    .enter()
+    .append("circle")
+    .attr("class", "chart-point batch-point")
+    .attr("cx", d => xScale(d.x))
+    .attr("cy", d => yScale(d.y))
+    .attr("r", 5)
+    .attr("fill", lineColor)
+    .attr("stroke", cssVariable("--surface"))
+    .attr("stroke-width", 1.8);
+
+  points.append("title")
+    .text(d => `${xLabel}: ${formatNumber(d.x, 4)}; ${yLabel}: ${formatNumber(d.y, 6)}`);
+
+  root.append("text")
+    .attr("x", margin.left + innerWidth / 2)
+    .attr("y", height - 16)
+    .attr("text-anchor", "middle")
+    .attr("fill", textColor)
+    .style("font-size", "13px")
+    .style("font-weight", "600")
+    .text(xLabel);
+
+  root.append("text")
+    .attr("x", 20)
+    .attr("y", margin.top + innerHeight / 2)
+    .attr("text-anchor", "middle")
+    .attr("fill", textColor)
+    .style("font-size", "13px")
+    .style("font-weight", "600")
+    .attr("transform", `rotate(-90 20 ${margin.top + innerHeight / 2})`)
+    .text(yLabel);
 }
 
 function renderResultsTable(rows) {
