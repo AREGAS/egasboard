@@ -538,6 +538,9 @@ function fitSelectedBatchRate() {
     time_end_h: Number(byId("transfer-time-end").value)
   });
 
+  if (fit.mean_bottle_volume_mL !== null) {
+    byId("transfer-bottle").value = fit.mean_bottle_volume_mL;
+  }
   if (fit.mean_liquid_volume_mL !== null) {
     byId("transfer-liquid").value = fit.mean_liquid_volume_mL;
   }
@@ -576,6 +579,7 @@ function currentTransferPayload(observedRateMmolD) {
     gas_id: byId("transfer-gas").value,
     observed_rate_value: observedRateMmolD,
     observed_rate_unit: "mmol_d",
+    bottle_volume_ml: numberValue("transfer-bottle"),
     liquid_volume_ml: numberValue("transfer-liquid"),
     temperature_c: numberValue("transfer-temperature"),
     pressure_bar_abs: numberValue("transfer-pressure"),
@@ -598,17 +602,6 @@ function renderTransferPredictionPlot(result) {
   const svg = byId("transfer-kla-chart");
   const explanation = byId("transfer-plot-explanation");
   if (!svg) return;
-
-  const width = 900;
-  const height = 500;
-  const left = 108;
-  const right = 34;
-  const top = 28;
-  const bottom = 92;
-  const plotWidth = width - left - right;
-  const plotHeight = height - top - bottom;
-
-  svg.innerHTML = "";
 
   const observedRate = Number(result.observed_rate_mmol_d);
   const centralKla = Number(result.kla_central_h);
@@ -636,126 +629,231 @@ function renderTransferPredictionPlot(result) {
   const denominator = Number(result.liquid_volume_L) *
     Number(result.equilibrium_dissolved_mmol_L) * 24.0;
 
-  const xScale = x => left + (x / xMax) * plotWidth;
-  const yScale = y => top + plotHeight - (y / yMax) * plotHeight;
-
-  function add(tag, attrs, text) {
-    const element = document.createElementNS("http://www.w3.org/2000/svg", tag);
-    Object.entries(attrs || {}).forEach(([key, value]) => element.setAttribute(key, value));
-    if (text !== undefined) element.textContent = text;
-    svg.appendChild(element);
-    return element;
+  if (!window.d3) {
+    // Basic fallback if the D3 CDN does not load.
+    svg.innerHTML = "";
+    if (explanation) {
+      explanation.textContent = "D3 could not be loaded, so the interactive plot is unavailable.";
+    }
+    return;
   }
+
+  const d3 = window.d3;
+  const width = 900;
+  const height = 500;
+  const margin = {top: 26, right: 36, bottom: 68, left: 78};
+  const innerWidth = width - margin.left - margin.right;
+  const innerHeight = height - margin.top - margin.bottom;
 
   const textColor = cssVariable("--chart-text") || cssVariable("--text");
   const mutedColor = cssVariable("--chart-muted") || cssVariable("--muted");
   const gridColor = cssVariable("--chart-grid");
   const axisColor = cssVariable("--chart-axis");
   const curveColor = cssVariable("--chart-primary") || cssVariable("--accent-dark");
-  const currentColor = cssVariable("--chart-current") || "#a0522d";
+  const currentColor = cssVariable("--chart-current") || "#a24f2f";
   const bandColor = cssVariable("--chart-band") || "#8fbea0";
   const referenceColor = cssVariable("--chart-reference") || cssVariable("--accent");
+  const surfaceColor = cssVariable("--surface") || "#ffffff";
 
-  // Estimated kLa range, or a single custom kLa reference line.
+  svg.innerHTML = "";
+  const root = d3.select(svg)
+    .attr("viewBox", `0 0 ${width} ${height}`)
+    .attr("preserveAspectRatio", "xMidYMid meet");
+
+  root.append("rect")
+    .attr("x", 0)
+    .attr("y", 0)
+    .attr("width", width)
+    .attr("height", height)
+    .attr("rx", 14)
+    .attr("fill", surfaceColor)
+    .attr("opacity", 0.04);
+
+  const plot = root.append("g")
+    .attr("transform", `translate(${margin.left},${margin.top})`);
+
+  const xScale = d3.scaleLinear().domain([0, xMax]).range([0, innerWidth]);
+  const yScale = d3.scaleLinear().domain([0, yMax]).range([innerHeight, 0]);
+
+  const xTicks = Math.max(4, Math.min(6, Math.round(xMax < 1 ? 4 : 5)));
+  const yTicks = 5;
+
+  plot.append("g")
+    .attr("class", "grid")
+    .attr("transform", `translate(0,${innerHeight})`)
+    .call(d3.axisBottom(xScale).ticks(xTicks).tickSize(-innerHeight).tickFormat(() => ""))
+    .call(g => g.selectAll("line").attr("stroke", gridColor).attr("stroke-width", 1))
+    .call(g => g.select(".domain").remove());
+
+  plot.append("g")
+    .attr("class", "grid")
+    .call(d3.axisLeft(yScale).ticks(yTicks).tickSize(-innerWidth).tickFormat(() => ""))
+    .call(g => g.selectAll("line").attr("stroke", gridColor).attr("stroke-width", 1))
+    .call(g => g.select(".domain").remove());
+
+  const xFormatter = xMax < 1 ? d3.format(".3f") : d3.format(".2f");
+  const yFormatter = yMax < 10 ? d3.format(".2f") : d3.format(".1f");
+
+  plot.append("g")
+    .attr("transform", `translate(0,${innerHeight})`)
+    .call(d3.axisBottom(xScale).ticks(xTicks).tickFormat(xFormatter))
+    .call(g => g.selectAll("text").attr("fill", mutedColor).style("font-size", "12px"))
+    .call(g => g.selectAll("line").attr("stroke", axisColor))
+    .call(g => g.select(".domain").attr("stroke", axisColor).attr("stroke-width", 1.8));
+
+  plot.append("g")
+    .call(d3.axisLeft(yScale).ticks(yTicks).tickFormat(yFormatter))
+    .call(g => g.selectAll("text").attr("fill", mutedColor).style("font-size", "12px"))
+    .call(g => g.selectAll("line").attr("stroke", axisColor))
+    .call(g => g.select(".domain").attr("stroke", axisColor).attr("stroke-width", 1.8));
+
   if (result.kla_source === "estimate") {
-    const yTop = yScale(highKla);
-    const yBottom = yScale(lowKla);
-    add("rect", {
-      x: left,
-      y: Math.min(yTop, yBottom),
-      width: plotWidth,
-      height: Math.abs(yBottom - yTop),
-      fill: bandColor,
-      opacity: "0.20"
-    });
-    add("line", {
-      x1:left, y1:yScale(centralKla), x2:left+plotWidth, y2:yScale(centralKla),
-      stroke:referenceColor, "stroke-width":"2", "stroke-dasharray":"8 6"
-    });
-  } else {
-    add("line", {
-      x1:left, y1:yScale(centralKla), x2:left+plotWidth, y2:yScale(centralKla),
-      stroke:referenceColor, "stroke-width":"2", "stroke-dasharray":"8 6"
-    });
+    plot.append("rect")
+      .attr("x", 0)
+      .attr("y", yScale(highKla))
+      .attr("width", innerWidth)
+      .attr("height", Math.max(0, yScale(lowKla) - yScale(highKla)))
+      .attr("fill", bandColor)
+      .attr("opacity", 0.18);
   }
 
-  // Grid and tick labels.
-  for (let i = 0; i <= 3; i += 1) {
-    const fraction = i / 3;
-    const x = left + fraction * plotWidth;
-    const xValue = fraction * xMax;
-    add("line", {x1:x, y1:top, x2:x, y2:top+plotHeight, stroke:gridColor, "stroke-width":"1"});
-    add("text", {
-      x:x, y:top+plotHeight+26, "text-anchor":"middle",
-      fill:mutedColor, "font-size":"12", "font-weight":"500"
-    }, formatNumber(xValue, xMax < 1 ? 3 : 2));
+  plot.append("line")
+    .attr("x1", 0)
+    .attr("x2", innerWidth)
+    .attr("y1", yScale(centralKla))
+    .attr("y2", yScale(centralKla))
+    .attr("stroke", referenceColor)
+    .attr("stroke-width", 2)
+    .attr("stroke-dasharray", "8 6");
 
-    const y = top + plotHeight - fraction * plotHeight;
-    const yValue = fraction * yMax;
-    add("line", {x1:left, y1:y, x2:left+plotWidth, y2:y, stroke:gridColor, "stroke-width":"1"});
-    add("text", {
-      x:left-12, y:y+5, "text-anchor":"end",
-      fill:mutedColor, "font-size":"12", "font-weight":"500"
-    }, formatNumber(yValue, yMax < 10 ? 2 : 1));
-  }
-
-  add("line", {x1:left, y1:top+plotHeight, x2:left+plotWidth, y2:top+plotHeight, stroke:axisColor, "stroke-width":"1.8"});
-  add("line", {x1:left, y1:top, x2:left, y2:top+plotHeight, stroke:axisColor, "stroke-width":"1.8"});
-
-  // Required kLa as a function of uptake rate.
-  const points = [];
-  for (let i = 0; i <= 40; i += 1) {
-    const rate = xMax * i / 40;
+  const lineData = d3.range(0, 81).map(i => {
+    const rate = xMax * i / 80;
     const klaRequired = denominator > 0 ? rate / denominator : 0;
-    points.push(`${xScale(rate)},${yScale(Math.min(klaRequired, yMax))}`);
-  }
-  add("polyline", {
-    points:points.join(" "),
-    fill:"none",
-    stroke:curveColor,
-    "stroke-width":"3",
-    "stroke-linejoin":"round",
-    "stroke-linecap":"round"
+    return { rate, klaRequired: Math.min(klaRequired, yMax) };
   });
 
-  // Current observed/predicted rate.
-  const currentX = xScale(Math.min(observedRate, xMax));
-  add("line", {
-    x1:currentX, y1:top, x2:currentX, y2:top+plotHeight,
-    stroke:currentColor, "stroke-width":"2.5", "stroke-dasharray":"5 5"
-  });
+  const line = d3.line()
+    .x(d => xScale(d.rate))
+    .y(d => yScale(d.klaRequired))
+    .curve(d3.curveMonotoneX);
+
+  plot.append("path")
+    .datum(lineData)
+    .attr("fill", "none")
+    .attr("stroke", curveColor)
+    .attr("stroke-width", 3)
+    .attr("stroke-linecap", "round")
+    .attr("stroke-linejoin", "round")
+    .attr("d", line);
+
+  const observedX = xScale(Math.min(observedRate, xMax));
+  plot.append("line")
+    .attr("x1", observedX)
+    .attr("x2", observedX)
+    .attr("y1", 0)
+    .attr("y2", innerHeight)
+    .attr("stroke", currentColor)
+    .attr("stroke-width", 2.5)
+    .attr("stroke-dasharray", "5 5");
 
   if (Number.isFinite(requiredKla) && requiredKla <= yMax) {
-    add("circle", {
-      cx:currentX,
-      cy:yScale(requiredKla),
-      r:"6",
-      fill:currentColor,
-      stroke:cssVariable("--surface"),
-      "stroke-width":"2"
-    });
+    plot.append("circle")
+      .attr("cx", observedX)
+      .attr("cy", yScale(requiredKla))
+      .attr("r", 6)
+      .attr("fill", currentColor)
+      .attr("stroke", surfaceColor)
+      .attr("stroke-width", 2);
   }
 
-  add("text", {
-    x:left + plotWidth/2, y:height-18, "text-anchor":"middle",
-    fill:textColor, "font-size":"14", "font-weight":"600"
-  }, "Gas uptake rate (mmol/day)");
+  const legend = root.append("g").attr("transform", `translate(${margin.left},12)`);
+  let legendX = 0;
+  function legendItem(color, label, opts = {}) {
+    const group = legend.append("g").attr("transform", `translate(${legendX},0)`);
+    if (opts.band) {
+      group.append("rect").attr("x", 0).attr("y", 1).attr("width", 22).attr("height", 10).attr("fill", color).attr("opacity", 0.22);
+    } else {
+      group.append("line")
+        .attr("x1", 0)
+        .attr("x2", 22)
+        .attr("y1", 6)
+        .attr("y2", 6)
+        .attr("stroke", color)
+        .attr("stroke-width", opts.width || 3)
+        .attr("stroke-dasharray", opts.dash || null);
+    }
+    group.append("text")
+      .attr("x", 28)
+      .attr("y", 10)
+      .attr("fill", textColor)
+      .style("font-size", "12px")
+      .style("font-weight", "600")
+      .text(label);
+    legendX += 28 + label.length * 7.2 + 18;
+  }
+  legendItem(curveColor, "required kLa");
+  if (result.kla_source === "estimate") {
+    legendItem(bandColor, "estimated range", { band: true });
+  }
+  legendItem(referenceColor, result.kla_source === "estimate" ? "central kLa" : "entered kLa", { dash: "8 6", width: 2 });
+  legendItem(currentColor, "your rate", { dash: "5 5", width: 2.5 });
 
-  const yText = add("text", {
-    x:22, y:top + plotHeight/2, "text-anchor":"middle",
-    fill:textColor, "font-size":"14", "font-weight":"600"
-  }, "Required kLa (h⁻¹)");
-  yText.setAttribute("transform", `rotate(-90 22 ${top + plotHeight/2})`);
+  root.append("text")
+    .attr("x", margin.left + innerWidth / 2)
+    .attr("y", height - 18)
+    .attr("text-anchor", "middle")
+    .attr("fill", textColor)
+    .style("font-size", "14px")
+    .style("font-weight", "600")
+    .text("Gas uptake rate (mmol/day)");
+
+  root.append("text")
+    .attr("x", 20)
+    .attr("y", margin.top + innerHeight / 2)
+    .attr("text-anchor", "middle")
+    .attr("fill", textColor)
+    .style("font-size", "14px")
+    .style("font-weight", "600")
+    .attr("transform", `rotate(-90 20 ${margin.top + innerHeight / 2})`)
+    .text("Required kLa (h⁻¹)");
+
+  const corner = plot.append("g").attr("transform", `translate(${Math.max(0, innerWidth - 205)},18)`);
+  corner.append("rect")
+    .attr("width", 192)
+    .attr("height", result.kla_source === "estimate" ? 64 : 46)
+    .attr("rx", 10)
+    .attr("fill", surfaceColor)
+    .attr("opacity", 0.92)
+    .attr("stroke", gridColor);
+  const cornerText = [
+    `Rate: ${formatNumber(observedRate, 4)} mmol/day`,
+    `Required kLa: ${formatNumber(requiredKla, 3)} h⁻¹`
+  ];
+  if (result.kla_source === "estimate") {
+    cornerText.push(`Estimate band: ${formatNumber(lowKla, 2)}-${formatNumber(highKla, 2)} h⁻¹`);
+  } else {
+    cornerText.push(`Entered kLa: ${formatNumber(centralKla, 2)} h⁻¹`);
+  }
+  corner.selectAll("text")
+    .data(cornerText)
+    .enter()
+    .append("text")
+    .attr("x", 12)
+    .attr("y", (_, i) => 18 + i * 16)
+    .attr("fill", textColor)
+    .style("font-size", "12px")
+    .style("font-weight", (_, i) => i === 0 ? "600" : "500")
+    .text(d => d);
 
   if (explanation) {
     if (result.kla_source === "estimate") {
       explanation.innerHTML =
-        `<strong>How to read this:</strong> sloped line = required k<sub>L</sub>a; green band = estimated range; dashed line = central estimate; red vertical line = your current rate. ` +
-        `Above the band suggests insufficient transfer, inside the band is uncertain, and below the band does not strongly indicate transfer limitation.`;
+        `<strong>How to read this:</strong> the sloped line shows the k<sub>L</sub>a needed to sustain a given uptake rate. ` +
+        `The green band is the estimated k<sub>L</sub>a range for the selected bottle, and the red line marks your current rate.`;
     } else {
       explanation.innerHTML =
-        `<strong>How to read this:</strong> sloped line = required k<sub>L</sub>a; dashed line = your entered k<sub>L</sub>a; red vertical line = your current rate. ` +
-        `An intersection above the dashed line means the entered k<sub>L</sub>a cannot support that uptake rate.`;
+        `<strong>How to read this:</strong> the sloped line shows the k<sub>L</sub>a needed to sustain a given uptake rate. ` +
+        `The dashed line is your entered k<sub>L</sub>a, and the red line marks your current rate.`;
     }
   }
 }
@@ -781,13 +879,19 @@ function transferExportRow(result, rateFit, sourceLabel) {
 
   return Object.assign(row, {
     rate_to_compare_mmol_d: result.observed_rate_mmol_d,
+    bottle_volume_mL: result.bottle_volume_L * 1000.0,
     liquid_volume_mL: result.liquid_volume_L * 1000.0,
+    headspace_volume_mL: result.headspace_volume_L * 1000.0,
     temperature_C: result.temperature_K - 273.15,
     pressure_bar_abs: result.pressure_bar_abs,
     headspace_gas_percent: result.headspace_gas_percent,
     headspace_gas_ppmv: result.headspace_gas_ppmv,
     partial_pressure_bar: result.partial_pressure_bar,
     equilibrium_dissolved_mmol_L: result.equilibrium_dissolved_mmol_L,
+    headspace_gas_mmol: result.headspace_gas_mmol,
+    equilibrium_dissolved_mmol: result.equilibrium_dissolved_mmol,
+    total_equilibrium_gas_mmol: result.total_equilibrium_gas_mmol,
+    estimated_depletion_time_hours: result.estimated_depletion_time_hours,
     henry_source: result.henry_source,
     henry_overridden: result.henry_overridden,
     henry_reference_Hcp_mol_m3_Pa: result.henry_reference_Hcp_mol_m3_Pa,
@@ -889,6 +993,11 @@ async function calculateTransfer({trackUsage = true, saveAnalysis = true, live =
       }
       html += metric("Transfer capacity", formatNumber(result.transfer_capacity_central_mmol_d, 4) + " mmol/day");
       html += metric("Rate", formatNumber(result.observed_rate_mmol_d, 4) + " mmol/day");
+      html += metric("Headspace gas", formatNumber(result.headspace_gas_mmol, 5) + " mmol");
+      html += metric("Total gas inventory", formatNumber(result.total_equilibrium_gas_mmol, 5) + " mmol");
+      if (result.estimated_depletion_time_hours !== null) {
+        html += metric("Inventory / rate", formatNumber(result.estimated_depletion_time_hours, 2) + " h");
+      }
       html += metric("Demand ratio", Number.isFinite(result.transfer_demand_ratio_central) ? formatNumber(result.transfer_demand_ratio_central, 3) : "∞");
       html += metric("Minimum kLa", Number.isFinite(result.minimum_required_kla_h) ? formatNumber(result.minimum_required_kla_h, 2) + " h⁻¹" : "∞");
       lastTransferResult = result;
@@ -1880,7 +1989,7 @@ async function initialize() {
   });
 
   const liveTransferIds = [
-    "transfer-rate", "transfer-rate-unit", "transfer-liquid", "transfer-temperature",
+    "transfer-rate", "transfer-rate-unit", "transfer-bottle", "transfer-liquid", "transfer-temperature",
     "transfer-pressure", "transfer-gas-value", "transfer-gas-unit", "transfer-salinity",
     "transfer-henry-source", "transfer-custom-hcp", "transfer-custom-henry-b",
     "transfer-kla-source", "transfer-vessel", "transfer-rpm", "transfer-custom-kla"

@@ -112,3 +112,5 @@ Streamlit v0.3 was used for workflow development and colleague testing.
 - kept a single rate-vs-required-kLa plot, moved it directly below the settings/actions, improved label spacing, and added a dark-red current-rate marker in dark mode;
 - consolidated the mass-transfer literature into a short table in How it works and removed citations from the interactive controls;
 - Explore & predict now counts once as a tool use on the first successful live calculation instead of counting every tweak.
+
+- Rate & mass transfer now includes vessel volume so closed-bottle headspace volume, gas inventory and a simple inventory/rate depletion time can be reported.

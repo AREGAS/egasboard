@@ -86,7 +86,7 @@ transfer demand ratio = uptake rate / MTRmax
 
 A measured or directly relevant literature kLa is preferred. If none is available, the interface provides broad vessel × rpm screening values with a ±50% indicative range. Gas-specific literature notes are shown where suitable batch or shaken-vessel data are available. All kLa and Henry Hcp/B values remain user-adjustable.
 
-**Explore & predict** mode recalculates live while bottle conditions, headspace concentration, kLa or Henry-law assumptions are changed. A single rate-vs-required-kLa plot shows the current rate against the selected or estimated kLa range, together with the minimum kLa required to support that uptake rate.
+**Explore & predict** mode recalculates live while vessel volume, liquid volume, headspace concentration, kLa or Henry-law assumptions are changed. Vessel and liquid volume are also used to report the current headspace gas inventory and a simple inventory/rate depletion indicator for closed bottles. A single rate-vs-required-kLa plot shows the current rate against the selected or estimated kLa range, together with the minimum kLa required to support that uptake rate.
 
 Saved analyses are added to the optional `Rates_mass_transfer` output sheet/table.
 

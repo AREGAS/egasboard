@@ -616,84 +616,105 @@
         </div>
       </div>
 
-      <div class="analysis-card">
+      <div class="analysis-card transfer-settings-card">
         <h3>Bottle &amp; transfer settings</h3>
-        <div class="form-grid">
-          <label>
-            Liquid volume (mL)
-            <input id="transfer-liquid" type="number" value="40" step="0.1" min="0">
-          </label>
-          <label>
-            Temperature (°C)
-            <input id="transfer-temperature" type="number" value="30" step="0.1">
-          </label>
-          <label>
-            Pressure (bar abs)
-            <input id="transfer-pressure" type="number" value="1.01325" step="0.001" min="0">
-          </label>
-          <label>
-            Headspace gas
-            <input id="transfer-gas-value" type="number" value="10" step="any" min="0">
-          </label>
-          <label>
-            Unit
-            <select id="transfer-gas-unit">
-              <option value="percent">%</option>
-              <option value="ppmv">ppmv</option>
-            </select>
-          </label>
-          <label>
-            NaCl eq. (g/L)
-            <input id="transfer-salinity" type="number" value="0" step="0.1" min="0">
-          </label>
-          <label>
-            Henry constant
-            <select id="transfer-henry-source">
-              <option value="default">Built-in Hcp</option>
-              <option value="custom">Custom Hcp / B</option>
-            </select>
-          </label>
-          <label id="transfer-custom-hcp-label" class="hidden">
-            Hcp at 25 °C
-            <input id="transfer-custom-hcp" type="number" step="any" min="0">
-          </label>
-          <label id="transfer-custom-henry-b-label" class="hidden">
-            Henry B (K)
-            <input id="transfer-custom-henry-b" type="number" step="any">
-          </label>
-          <label>
-            kLa
-            <select id="transfer-kla-source">
-              <option value="estimate">Estimate</option>
-              <option value="custom">Custom</option>
-            </select>
-          </label>
-          <label id="transfer-vessel-label">
-            Vessel
-            <select id="transfer-vessel">
-              <option value="tube">Tube (10-20 mL)</option>
-              <option value="flask">Flask (20-120 mL)</option>
-              <option value="small_bottle" selected>Small bottle (120-500 mL)</option>
-              <option value="large_bottle">Large bottle (0.5-2 L)</option>
-            </select>
-          </label>
-          <label id="transfer-rpm-label">
-            Shaking
-            <select id="transfer-rpm">
-              <option value="100">100 rpm</option>
-              <option value="150">150 rpm</option>
-              <option value="200" selected>200 rpm</option>
-              <option value="400">400 rpm</option>
-            </select>
-          </label>
-          <label id="transfer-custom-kla-label" class="hidden">
-            Custom kLa (h<sup>−1</sup>)
-            <input id="transfer-custom-kla" type="number" value="10" step="any" min="0">
-          </label>
-        </div>
 
-        <p id="transfer-henry-preview" class="example-note"></p>
-        <p id="transfer-kla-preview" class="example-note"></p>
+        <div class="transfer-settings-groups">
+          <div class="transfer-settings-group">
+            <h4>Bottle</h4>
+            <div class="form-grid transfer-settings-grid">
+              <label>
+                Vessel volume (mL)
+                <input id="transfer-bottle" type="number" value="120" step="0.1" min="0">
+              </label>
+              <label>
+                Liquid volume (mL)
+                <input id="transfer-liquid" type="number" value="40" step="0.1" min="0">
+              </label>
+              <label>
+                Temperature (°C)
+                <input id="transfer-temperature" type="number" value="30" step="0.1">
+              </label>
+              <label>
+                Pressure (bar abs)
+                <input id="transfer-pressure" type="number" value="1.01325" step="0.001" min="0">
+              </label>
+              <label>
+                Headspace gas
+                <input id="transfer-gas-value" type="number" value="10" step="any" min="0">
+              </label>
+              <label>
+                Unit
+                <select id="transfer-gas-unit">
+                  <option value="percent">%</option>
+                  <option value="ppmv">ppmv</option>
+                </select>
+              </label>
+              <label>
+                NaCl eq. (g/L)
+                <input id="transfer-salinity" type="number" value="0" step="0.1" min="0">
+              </label>
+            </div>
+          </div>
+
+          <div class="transfer-settings-group">
+            <h4>Gas properties</h4>
+            <div class="form-grid transfer-settings-grid">
+              <label>
+                Henry constant
+                <select id="transfer-henry-source">
+                  <option value="default">Built-in Hcp</option>
+                  <option value="custom">Custom Hcp / B</option>
+                </select>
+              </label>
+              <label id="transfer-custom-hcp-label" class="hidden">
+                Hcp at 25 °C
+                <input id="transfer-custom-hcp" type="number" step="any" min="0">
+              </label>
+              <label id="transfer-custom-henry-b-label" class="hidden">
+                Henry B (K)
+                <input id="transfer-custom-henry-b" type="number" step="any">
+              </label>
+            </div>
+            <p id="transfer-henry-preview" class="setting-preview"></p>
+          </div>
+
+          <div class="transfer-settings-group">
+            <h4>Mass transfer</h4>
+            <div class="form-grid transfer-settings-grid">
+              <label>
+                kLa
+                <select id="transfer-kla-source">
+                  <option value="estimate">Estimate</option>
+                  <option value="custom">Custom</option>
+                </select>
+              </label>
+              <label id="transfer-vessel-label">
+                Vessel
+                <select id="transfer-vessel">
+                  <option value="tube">Tube (10-20 mL)</option>
+                  <option value="flask">Flask (20-120 mL)</option>
+                  <option value="small_bottle" selected>Small bottle (120-500 mL)</option>
+                  <option value="large_bottle">Large bottle (0.5-2 L)</option>
+                </select>
+              </label>
+              <label id="transfer-rpm-label">
+                Shaking
+                <select id="transfer-rpm">
+                  <option value="100">100 rpm</option>
+                  <option value="150">150 rpm</option>
+                  <option value="200" selected>200 rpm</option>
+                  <option value="400">400 rpm</option>
+                </select>
+              </label>
+              <label id="transfer-custom-kla-label" class="hidden">
+                Custom kLa (h<sup>−1</sup>)
+                <input id="transfer-custom-kla" type="number" value="10" step="any" min="0">
+              </label>
+            </div>
+            <p id="transfer-kla-preview" class="setting-preview"></p>
+          </div>
+        </div>
       </div>
 
       <div class="button-row transfer-actions">
@@ -1740,6 +1761,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
   <script type="module" src="./js/app.js"></script>
 </body>
 </html>
