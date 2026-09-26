@@ -51,16 +51,25 @@
       <h2>What this tool does</h2>
       <div class="tool-example-grid">
         <div>
-          <strong>Gas balances</strong>
-          <p>Convert GC or headspace measurements to headspace, dissolved and total bottle amounts.</p>
+          <strong>From GC peak area to bottle amount</strong>
+          <p>
+            Example: convert a CO peak area into headspace %, then calculate the amount
+            present in the headspace, liquid and complete bottle.
+          </p>
         </div>
         <div>
-          <strong>Gas dosing</strong>
-          <p>Calculate gas additions for dissolved or equilibrated headspace targets.</p>
+          <strong>From a target concentration to a gas dose</strong>
+          <p>
+            Example: calculate how much O₂ to add to reach 150 µM dissolved O₂, or
+            how much gas is needed to reach 500 ppmv in the equilibrated headspace.
+          </p>
         </div>
         <div>
-          <strong>Rates &amp; transfer</strong>
-          <p>Fit time-series rates and screen whether gas transfer could support them.</p>
+          <strong>Check rates and gas-transfer capacity</strong>
+          <p>
+            Compare an observed uptake rate with literature-based or user-entered k<sub>L</sub>a and gas-property values
+            to screen whether gas-liquid transfer could be limiting.
+          </p>
         </div>
       </div>
     </section>
@@ -77,18 +86,127 @@
     <section id="tab-batch" class="tab-panel active">
       <h2>Batch analysis</h2>
       <p class="lead">
-        Upload measurements and calibration data as .xlsx, .csv or .tsv. One row is one bottle and time point; recognized gas columns are read automatically.
+        Upload .xlsx, .csv or .tsv files. One row represents one bottle and time point,
+        and gas columns contain GC peak areas. Supported gas headers are recognized
+        automatically, and blank gas cells are ignored.
       </p>
 
-      <div class="upload-card batch-upload-card">
-        <div class="batch-example-cta">
-          <strong>New to (E)Gasboard?</strong>
-          <span>Download the example files, upload both below and run them to see the full workflow.</span>
-          <div class="download-row compact-download-row">
-            <a class="secondary-button subtle" href="./examples/example_measurements.xlsx" download data-track-event="example-measurements-download" data-track-title="Example measurements download">Example measurements</a>
-            <a class="secondary-button subtle" href="./examples/example_calibration.xlsx" download data-track-event="example-calibration-download" data-track-title="Example calibration download">Example calibration</a>
-          </div>
+      <div class="example-block">
+        <h3>Example measurement input</h3>
+        <div class="table-wrap full-example-table">
+          <table>
+            <thead>
+              <tr>
+                <th>experiment_id</th><th>sample_id</th><th>time_h</th>
+                <th>pressure_bar_abs</th><th>temperature_C</th>
+                <th>bottle_volume_mL</th><th>liquid_volume_mL</th>
+                <th>liquid_sample_mL</th><th>headspace_sample_mL</th>
+                <th>salinity_g_L_NaCl</th><th>pH</th>
+                <th>CO</th><th>CO2</th><th>CH4</th><th>O2</th>
+                <th>H2S</th><th>N2O</th><th>NO</th><th>N2</th><th>C2H6</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>WK3_example</td><td>1_CO</td><td>3.6333</td><td>1.58325</td>
+                <td>23</td><td>120</td><td>39.56</td><td>0.50</td><td>0.10</td><td>0</td><td>7.27</td>
+                <td>829.056</td><td>274.38</td><td>2.40</td>
+                <td></td><td></td><td></td><td></td><td></td><td></td>
+              </tr>
+              <tr>
+                <td>WK3_example</td><td>1_CO</td><td>16.1667</td><td>1.54525</td>
+                <td>23</td><td>120</td><td>39.06</td><td>1.50</td><td>0.10</td><td>0</td><td>7.27</td>
+                <td>408.20</td><td>455.30</td><td>7.50</td>
+                <td></td><td></td><td></td><td></td><td></td><td></td>
+              </tr>
+            </tbody>
+          </table>
         </div>
+        <p class="example-note">
+          Recognized gas columns: CO, CO2, CH4, O2, H2S, N2O, NO, N2 and C2H6.
+          <code>liquid_sample_mL</code> and <code>headspace_sample_mL</code> are optional.
+          When supplied, they describe volumes removed <strong>after</strong> the measurement on that row,
+          so the sampling loss is applied only to subsequent time points. Leave them blank or use 0 when no sample is removed.
+        </p>
+      </div>
+
+      <div class="example-block calibration-block">
+        <h3>Example calibration input</h3>
+        <div class="table-wrap full-example-table calibration-example">
+          <table>
+            <thead>
+              <tr>
+                <th>gas_id</th>
+                <th>calibration_id</th>
+                <th>gas_percent</th>
+                <th>peak_area</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>CO</td>
+                <td>CO_0.935_rep1</td>
+                <td>0.93541</td>
+                <td>100.6</td>
+              </tr>
+              <tr>
+                <td>CO</td>
+                <td>CO_4.516_rep1</td>
+                <td>4.51637</td>
+                <td>530.0</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="download-row">
+        <a
+          class="secondary-button"
+          href="./templates/measurement_template.xlsx"
+          download
+          data-track-event="measurement-template-download"
+          data-track-title="Measurement template download"
+        >
+          Measurement template
+        </a>
+
+        <a
+          class="secondary-button"
+          href="./templates/calibration_template.xlsx"
+          download
+          data-track-event="calibration-template-download"
+          data-track-title="Calibration template download"
+        >
+          Calibration template
+        </a>
+
+        <a
+          class="secondary-button subtle"
+          href="./examples/example_measurements.xlsx"
+          download
+          data-track-event="example-measurements-download"
+          data-track-title="Example measurements download"
+        >
+          Example measurements
+        </a>
+
+        <a
+          class="secondary-button subtle"
+          href="./examples/example_calibration.xlsx"
+          download
+          data-track-event="example-calibration-download"
+          data-track-title="Example calibration download"
+        >
+          Example calibration
+        </a>
+      </div>
+
+      <div class="upload-card">
+        <p class="example-note">
+          <strong>Explore the full workflow:</strong> download the example measurement and calibration files above,
+          upload both here, and run the calculation to see calibration fitting, QC, gas calculations,
+          sampling-loss correction, interactive plots and downloadable results.
 
         <div class="file-field">
           <label for="measurement-file">Measurements</label>
@@ -125,68 +243,10 @@
           </label>
         </div>
 
-        <button id="batch-calculate" class="primary-button">Calculate uploaded data</button>
+        <button id="batch-calculate" class="primary-button">
+          Calculate uploaded data
+        </button>
       </div>
-
-      <details class="input-guide">
-        <summary>Input format &amp; example columns</summary>
-        <div class="input-guide-content">
-          <div class="download-row compact-download-row">
-            <a class="secondary-button" href="./templates/measurement_template.xlsx" download data-track-event="measurement-template-download" data-track-title="Measurement template download">Measurement template</a>
-            <a class="secondary-button" href="./templates/calibration_template.xlsx" download data-track-event="calibration-template-download" data-track-title="Calibration template download">Calibration template</a>
-          </div>
-
-          <div class="example-block">
-            <h3>Measurement input</h3>
-            <div class="table-wrap full-example-table">
-              <table>
-                <thead>
-                  <tr>
-                    <th>experiment_id</th><th>sample_id</th><th>time_h</th>
-                    <th>pressure_bar_abs</th><th>temperature_C</th>
-                    <th>bottle_volume_mL</th><th>liquid_volume_mL</th>
-                    <th>liquid_sample_mL</th><th>headspace_sample_mL</th>
-                    <th>salinity_g_L_NaCl</th><th>pH</th>
-                    <th>CO</th><th>CO2</th><th>CH4</th><th>O2</th>
-                    <th>H2S</th><th>N2O</th><th>NO</th><th>N2</th><th>C2H6</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>WK3_example</td><td>1_CO</td><td>3.6333</td><td>1.58325</td>
-                    <td>23</td><td>120</td><td>39.56</td><td>0.50</td><td>0.10</td><td>0</td><td>7.27</td>
-                    <td>829.056</td><td>274.38</td><td>2.40</td>
-                    <td></td><td></td><td></td><td></td><td></td><td></td>
-                  </tr>
-                  <tr>
-                    <td>WK3_example</td><td>1_CO</td><td>16.1667</td><td>1.54525</td>
-                    <td>23</td><td>120</td><td>39.06</td><td>1.50</td><td>0.10</td><td>0</td><td>7.27</td>
-                    <td>408.20</td><td>455.30</td><td>7.50</td>
-                    <td></td><td></td><td></td><td></td><td></td><td></td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <p class="example-note">
-              Recognized gas columns: CO, CO2, CH4, O2, H2S, N2O, NO, N2 and C2H6.
-              <code>liquid_sample_mL</code> and <code>headspace_sample_mL</code> are optional and describe volumes removed after the measurement on that row.
-            </p>
-          </div>
-
-          <div class="example-block calibration-block">
-            <h3>Calibration input</h3>
-            <div class="table-wrap full-example-table calibration-example">
-              <table>
-                <thead><tr><th>gas_id</th><th>calibration_id</th><th>gas_percent</th><th>peak_area</th></tr></thead>
-                <tbody>
-                  <tr><td>CO</td><td>CO_0.935_rep1</td><td>0.93541</td><td>100.6</td></tr>
-                  <tr><td>CO</td><td>CO_4.516_rep1</td><td>4.51637</td><td>530.0</td></tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </details>
 
       <div id="batch-status" class="status hidden"></div>
 
@@ -283,29 +343,51 @@
     <section id="tab-single" class="tab-panel">
       <h2>Single calculation</h2>
 
-      <div class="single-form">
-        <div class="single-section">
-          <div class="single-section-title">Gas</div>
-          <div class="form-grid single-grid">
-            <label>Gas<select id="single-gas"></select></label>
-            <label>Headspace gas (%)<input id="single-percent" type="number" value="15" step="0.01"></label>
-          </div>
-        </div>
+      <div class="form-grid">
+        <label>
+          Gas
+          <select id="single-gas"></select>
+        </label>
 
-        <div class="single-section">
-          <div class="single-section-title">Bottle details</div>
-          <div class="form-grid single-grid single-grid-details">
-            <label>Absolute pressure (bar)<input id="single-pressure" type="number" value="1.5" step="0.01"></label>
-            <label>Temperature (°C)<input id="single-temperature" type="number" value="30" step="0.1"></label>
-            <label>Bottle volume (mL)<input id="single-bottle" type="number" value="120" step="0.1"></label>
-            <label>Liquid volume (mL)<input id="single-liquid" type="number" value="50" step="0.1"></label>
-            <label>NaCl-equivalent (g/L)<input id="single-salinity" type="number" value="0" step="0.1"></label>
-            <label>pH, optional<input id="single-ph" type="number" placeholder="optional" step="0.01"></label>
-          </div>
-        </div>
+        <label>
+          Gas in headspace (%)
+          <input id="single-percent" type="number" value="15" step="0.01">
+        </label>
+
+        <label>
+          Absolute pressure (bar)
+          <input id="single-pressure" type="number" value="1.5" step="0.01">
+        </label>
+
+        <label>
+          Temperature (°C)
+          <input id="single-temperature" type="number" value="30" step="0.1">
+        </label>
+
+        <label>
+          Bottle volume (mL)
+          <input id="single-bottle" type="number" value="120" step="0.1">
+        </label>
+
+        <label>
+          Liquid volume (mL)
+          <input id="single-liquid" type="number" value="50" step="0.1">
+        </label>
+
+        <label>
+          NaCl-equivalent (g/L)
+          <input id="single-salinity" type="number" value="0" step="0.1">
+        </label>
+
+        <label>
+          pH, optional
+          <input id="single-ph" type="number" placeholder="optional" step="0.01">
+        </label>
       </div>
 
-      <button id="single-calculate" class="primary-button">Calculate bottle state</button>
+      <button id="single-calculate" class="primary-button">
+        Calculate bottle state
+      </button>
 
       <div id="single-status" class="status hidden"></div>
       <div id="single-results" class="metric-grid"></div>
@@ -664,14 +746,6 @@
 
       <p><em>Res ipsa loquitur.</em></p>
 
-      <nav class="methods-jump" aria-label="How it works sections">
-        <a href="#methods-gas-balance">Gas balance</a>
-        <a href="#methods-sampling">Sampling</a>
-        <a href="#methods-transfer">Rates &amp; transfer</a>
-        <a href="#methods-dosing">Gas dosing</a>
-        <a href="#methods-units">Units</a>
-      </nav>
-
       <div class="flow">
         <span>GC peak area</span>
         <span>→</span>
@@ -847,7 +921,7 @@
 
       <p class="muted">Internal calculation units are Pa, m³, K and mol.</p>
 
-      <div id="methods-gas-balance" class="method-step method-anchor">
+      <div class="method-step">
         <h3>1. GC peak area to gas concentration</h3>
 
         <p>
@@ -1238,7 +1312,7 @@
         </p>
       </div>
 
-      <div id="methods-sampling" class="method-step method-anchor">
+      <div class="method-step">
         <h3>9. Sampling-loss correction for time-series experiments</h3>
 
         <p>
@@ -1370,7 +1444,7 @@
         </p>
       </div>
 
-      <div id="methods-transfer" class="method-step co2-box method-anchor">
+      <div class="method-step co2-box">
         <h3>Rate &amp; gas-liquid mass transfer</h3>
 
         <p>
@@ -1479,7 +1553,7 @@
         </div>
       </div>
 
-      <div id="methods-dosing" class="method-step method-anchor">
+      <div class="method-step">
         <h3>Gas dosing</h3>
         <p>
           A dissolved target is converted to its required partial pressure. A headspace target (% or ppmv) is solved together with gas-liquid equilibrium and the pressure added by the dosing mixture.
@@ -1498,7 +1572,7 @@
         </p>
       </div>
 
-      <div id="methods-units" class="method-step method-anchor">
+      <div class="method-step">
         <h3>Gas-phase concentration units: % and ppmv</h3>
 
         <p>
@@ -1687,7 +1761,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
   <script type="module" src="./js/app.js"></script>
 </body>
 </html>
