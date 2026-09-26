@@ -229,6 +229,7 @@ export function calculateMassTransferAssessment({
   gas_id,
   observed_rate_value,
   observed_rate_unit = "mmol_d",
+  bottle_volume_ml,
   liquid_volume_ml,
   temperature_c,
   pressure_bar_abs,
@@ -243,6 +244,7 @@ export function calculateMassTransferAssessment({
   custom_henry_B_K = null
 }) {
   const gasId = String(gas_id).trim().toUpperCase();
+  const bottleVolumeMl = Number(bottle_volume_ml);
   const liquidVolumeMl = Number(liquid_volume_ml);
   const temperatureC = Number(temperature_c);
   const pressureBarAbs = Number(pressure_bar_abs);
@@ -251,8 +253,14 @@ export function calculateMassTransferAssessment({
   const klaSource = String(kla_source || "estimate").trim().toLowerCase();
   const henrySource = String(henry_source || "default").trim().toLowerCase();
 
+  if (!(bottleVolumeMl > 0)) {
+    throw new Error("Vessel volume must be larger than zero.");
+  }
   if (!(liquidVolumeMl > 0)) {
     throw new Error("Liquid volume must be larger than zero.");
+  }
+  if (!(bottleVolumeMl > liquidVolumeMl)) {
+    throw new Error("Vessel volume must be larger than liquid volume.");
   }
   if (!(temperatureC > -273.15)) {
     throw new Error("Temperature must be above absolute zero.");
@@ -274,6 +282,7 @@ export function calculateMassTransferAssessment({
   }
 
   const liquidVolumeL = liquidVolumeMl / 1000.0;
+  const headspaceVolumeL = (bottleVolumeMl - liquidVolumeMl) / 1000.0;
   const observedMmolD = convertObservedRateToMmolPerDay(
     observed_rate_value,
     observed_rate_unit,
@@ -326,6 +335,14 @@ export function calculateMassTransferAssessment({
   // Numerically, 1 mol m^-3 = 1 mmol L^-1.
   const cStarMmolL = henryConstant * partialPressurePa;
   const cStarUmolL = cStarMmolL * 1000.0;
+
+  const gasConstant = 8.314462618;
+  const headspaceGasMmol = (partialPressurePa * (headspaceVolumeL / 1000.0) / (gasConstant * temperatureK)) * 1000.0;
+  const equilibriumDissolvedMmol = cStarMmolL * liquidVolumeL;
+  const totalEquilibriumGasMmol = headspaceGasMmol + equilibriumDissolvedMmol;
+  const depletionTimeDays = observedMmolD > 0
+    ? totalEquilibriumGasMmol / observedMmolD
+    : null;
 
   let centralKlaH;
   let lowKlaH;
@@ -394,7 +411,9 @@ export function calculateMassTransferAssessment({
   return {
     gas_id: gasId,
     observed_rate_mmol_d: observedMmolD,
+    bottle_volume_L: bottleVolumeMl / 1000.0,
     liquid_volume_L: liquidVolumeL,
+    headspace_volume_L: headspaceVolumeL,
     temperature_K: temperatureK,
     pressure_bar_abs: pressureBarAbs,
     headspace_gas_percent: gasPercent,
@@ -409,6 +428,11 @@ export function calculateMassTransferAssessment({
     henry_temperature_corrected: henryConstant,
     equilibrium_dissolved_mmol_L: cStarMmolL,
     equilibrium_dissolved_umol_L: cStarUmolL,
+    headspace_gas_mmol: headspaceGasMmol,
+    equilibrium_dissolved_mmol: equilibriumDissolvedMmol,
+    total_equilibrium_gas_mmol: totalEquilibriumGasMmol,
+    estimated_depletion_time_days: depletionTimeDays,
+    estimated_depletion_time_hours: depletionTimeDays === null ? null : depletionTimeDays * 24.0,
     kla_source: klaSource,
     vessel_class: estimate ? estimate.vessel_class : null,
     vessel_label: estimate ? estimate.vessel_label : null,

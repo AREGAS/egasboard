@@ -16,6 +16,7 @@ def test_mass_transfer_capacity_matches_equation():
         gas_id="CO",
         observed_rate_value=0.20,
         observed_rate_unit="mmol_d",
+        bottle_volume_ml=120.0,
         liquid_volume_ml=40.0,
         temperature_c=30.0,
         pressure_bar_abs=1.01325,
@@ -44,6 +45,7 @@ def test_volumetric_rate_unit_converts_to_whole_bottle_rate():
         gas_id="O2",
         observed_rate_value=5.0,
         observed_rate_unit="mmol_L_d",
+        bottle_volume_ml=250.0,
         liquid_volume_ml=100.0,
         temperature_c=25.0,
         pressure_bar_abs=1.0,
@@ -62,6 +64,7 @@ def test_custom_henry_values_are_used():
         gas_id="CO",
         observed_rate_value=0.20,
         observed_rate_unit="mmol_d",
+        bottle_volume_ml=120.0,
         liquid_volume_ml=40.0,
         temperature_c=30.0,
         pressure_bar_abs=1.01325,
@@ -77,3 +80,24 @@ def test_custom_henry_values_are_used():
     assert result["henry_reference_Hcp_mol_m3_Pa"] == 1.0e-5
     assert result["henry_B_K"] == 1200.0
     assert result["henry_source"] == "Custom user value"
+
+
+def test_closed_bottle_inventory_is_reported():
+    result = calculate_mass_transfer_assessment(
+        gas_id="CO",
+        observed_rate_value=0.01,
+        observed_rate_unit="mmol_d",
+        bottle_volume_ml=120,
+        liquid_volume_ml=40,
+        temperature_c=30,
+        pressure_bar_abs=2.39325,
+        headspace_gas_percent=0.1,
+        salinity_g_l_nacl=0,
+        kla_source="estimate",
+        vessel_class="small_bottle",
+        shaking_rpm=150,
+    )
+    assert abs(result["headspace_volume_L"] - 0.08) < 1e-12
+    assert result["headspace_gas_mmol"] > 0
+    assert result["total_equilibrium_gas_mmol"] > result["headspace_gas_mmol"]
+    assert result["estimated_depletion_time_hours"] > 0

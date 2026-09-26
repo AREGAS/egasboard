@@ -349,6 +349,18 @@ The minimum kLa required to support the entered rate even at \(C_L=0\) is:
 k_La_{min}=\frac{r_{uptake}}{V_LC^*}
 \]
 
+For closed bottles, vessel volume is also used to calculate the headspace volume and the molecular gas inventory present at the current conditions:
+
+\[
+V_{headspace}=V_{bottle}-V_L
+\]
+
+\[
+n_{gas,headspace}=\frac{p_iV_{headspace}}{RT}
+\]
+
+The reported inventory/rate time is the current molecular gas inventory divided by the entered uptake rate. It is a simple depletion indicator, not a dynamic simulation; as gas is consumed, headspace partial pressure and transfer capacity will fall.
+
 ### Rough kLa screening estimates
 
 A measured or otherwise independently determined kLa is preferred. When none is available, (E)Gasboard offers deliberately broad screening estimates for ordinary **unbaffled orbital shaking**:

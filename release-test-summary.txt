@@ -2,7 +2,7 @@
 
 JavaScript syntax: passed
 JavaScript scientific parity/tests: passed
-Python reference tests: 32 passed (PYTHONPATH=.)
+Python reference tests: 33 passed (PYTHONPATH=.)
 HTML duplicate-ID check: passed
 Batch-to-rate handoff: checked
 Optional Rates_mass_transfer workbook output: retained
@@ -18,3 +18,4 @@ Gas dosing grouped-row UI: retained
 CSV/TSV Results-only and full ZIP package: retained
 Calibration input/template files: unchanged
 License: GPL-3.0-or-later
+Closed-bottle mass-transfer inventory: vessel volume/headspace amount/depletion indicator added

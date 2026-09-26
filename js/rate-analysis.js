@@ -175,6 +175,7 @@ export function fitTimeSeriesRate({
     intercept_mmol: interceptMmol,
     r_squared: rSquared,
     direction,
+    mean_bottle_volume_mL: mean(points.map(point => finiteNumber(point.row.bottle_volume_mL))),
     mean_liquid_volume_mL: meanLiquidMl,
     mean_temperature_C: mean(points.map(point => finiteNumber(point.row.temperature_C))),
     mean_pressure_bar_abs: mean(points.map(point => finiteNumber(point.row.pressure_bar_abs))),

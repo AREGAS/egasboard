@@ -112,6 +112,7 @@ def calculate_mass_transfer_assessment(
     gas_id,
     observed_rate_value,
     observed_rate_unit,
+    bottle_volume_ml,
     liquid_volume_ml,
     temperature_c,
     pressure_bar_abs,
@@ -125,6 +126,7 @@ def calculate_mass_transfer_assessment(
     custom_hcp_ref=None,
     custom_henry_B_K=None,
 ):
+    bottle_volume_ml = float(bottle_volume_ml)
     liquid_volume_ml = float(liquid_volume_ml)
     temperature_c = float(temperature_c)
     pressure_bar_abs = float(pressure_bar_abs)
@@ -133,8 +135,12 @@ def calculate_mass_transfer_assessment(
     kla_source = str(kla_source).strip().lower()
     henry_source = str(henry_source).strip().lower()
 
+    if bottle_volume_ml <= 0:
+        raise ValueError("Vessel volume must be larger than zero.")
     if liquid_volume_ml <= 0:
         raise ValueError("Liquid volume must be larger than zero.")
+    if bottle_volume_ml <= liquid_volume_ml:
+        raise ValueError("Vessel volume must be larger than liquid volume.")
     if temperature_c <= -273.15:
         raise ValueError("Temperature must be above absolute zero.")
     if pressure_bar_abs <= 0:
@@ -149,6 +155,7 @@ def calculate_mass_transfer_assessment(
         raise ValueError("Henry source must be the built-in value or a custom value.")
 
     liquid_volume_l = liquid_volume_ml / 1000.0
+    headspace_volume_l = (bottle_volume_ml - liquid_volume_ml) / 1000.0
     observed_mmol_d = _convert_rate_to_mmol_d(
         observed_rate_value,
         observed_rate_unit,
@@ -193,6 +200,21 @@ def calculate_mass_transfer_assessment(
     c_star_mmol_l = henry_constant * partial_pressure_pa
     c_star_umol_l = c_star_mmol_l * 1000.0
 
+    gas_constant = 8.314462618
+    headspace_gas_mmol = (
+        partial_pressure_pa
+        * (headspace_volume_l / 1000.0)
+        / (gas_constant * temperature_k)
+        * 1000.0
+    )
+    equilibrium_dissolved_mmol = c_star_mmol_l * liquid_volume_l
+    total_equilibrium_gas_mmol = headspace_gas_mmol + equilibrium_dissolved_mmol
+    depletion_time_days = (
+        total_equilibrium_gas_mmol / observed_mmol_d
+        if observed_mmol_d > 0
+        else None
+    )
+
     estimate = None
     if kla_source == "estimate":
         estimate = get_kla_screening_estimate(vessel_class, shaking_rpm, gas_id)
@@ -233,7 +255,9 @@ def calculate_mass_transfer_assessment(
     return {
         "gas_id": str(gas_id).strip().upper(),
         "observed_rate_mmol_d": observed_mmol_d,
+        "bottle_volume_L": bottle_volume_ml / 1000.0,
         "liquid_volume_L": liquid_volume_l,
+        "headspace_volume_L": headspace_volume_l,
         "temperature_K": temperature_k,
         "pressure_bar_abs": pressure_bar_abs,
         "headspace_gas_percent": headspace_gas_percent,
@@ -248,6 +272,11 @@ def calculate_mass_transfer_assessment(
         "henry_temperature_corrected": henry_constant,
         "equilibrium_dissolved_mmol_L": c_star_mmol_l,
         "equilibrium_dissolved_umol_L": c_star_umol_l,
+        "headspace_gas_mmol": headspace_gas_mmol,
+        "equilibrium_dissolved_mmol": equilibrium_dissolved_mmol,
+        "total_equilibrium_gas_mmol": total_equilibrium_gas_mmol,
+        "estimated_depletion_time_days": depletion_time_days,
+        "estimated_depletion_time_hours": None if depletion_time_days is None else depletion_time_days * 24.0,
         "kla_source": kla_source,
         "vessel_class": estimate["vessel_class"] if estimate else None,
         "vessel_label": estimate["vessel_label"] if estimate else None,
