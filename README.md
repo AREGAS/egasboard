@@ -17,7 +17,7 @@
   </a>
 </p>
 
-<h1 align="center">(E)Gasboard v0.1</h1>
+<h1 align="center">(E)Gasboard v0.2</h1>
 
 <p align="center">
   Gas balances, dosing and gas-transfer screening for closed incubations and microcosms.
@@ -95,7 +95,7 @@ Saved analyses are added to the optional `Rates_mass_transfer` output sheet/tabl
 The Excel export is named, for example:
 
 ```text
-EGasboard_results_v0.1.xlsx
+EGasboard_results_v0.2.xlsx
 ```
 
 and contains:
@@ -161,8 +161,8 @@ and opened at `http://localhost:8000`. This is not required to use (E)Gasboard; 
 
 - one measurement row represents one closed bottle at one time point;
 - entered pressure is absolute;
-- water vapour is neglected in v0.1;
-- v0.1 uses the ideal gas law with `Z = 1`;
+- water vapour is neglected in v0.2;
+- v0.2 uses the ideal gas law with `Z = 1`;
 - Henry constants use the `Hcp = c/p` convention;
 - salting out uses NaCl-equivalent concentration;
 - total bottle amount is headspace + molecular dissolved gas;
@@ -185,7 +185,7 @@ js/analytics-config.js
 
 ## Citation
 
-> Egas, R. A. (2026). *(E)Gasboard* (v0.1) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.22704550
+> Egas, R. A. (2026). *(E)Gasboard* (v0.2) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.22704550
 
 ## License
 
