@@ -126,3 +126,13 @@ Streamlit v0.3 was used for workflow development and colleague testing.
 - Explore & predict now counts once as a tool use on the first successful live calculation instead of counting every tweak.
 
 - Rate & mass transfer now includes vessel volume so closed-bottle headspace volume, gas inventory and a simple inventory/rate depletion time can be reported.
+
+## v0.2 release preparation
+
+- Added rate fitting and gas-transfer screening for batch time series and manual rates.
+- Added vessel/headspace handling, gas-inventory estimates and improved sampling-loss correction.
+- Expanded gas-dosing options and unit handling.
+- Added cleaner CSV/TSV export packages alongside Excel output.
+- Reworked interactive plots using D3.js for clearer rate, batch and calibration figures.
+- Improved light/dark styling, layout, navigation and documentation throughout the interface.
+- Updated assumptions, calculation notes and reference material for the expanded analysis workflow.
