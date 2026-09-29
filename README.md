@@ -185,7 +185,7 @@ js/analytics-config.js
 
 ## Citation
 
-> Egas, R. A. (2026). *(E)Gasboard* (v0.2) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.22704550
+> Egas, R. A. (2026). *(E)Gasboard* (v0.2) - Open research software for gas calculations. Zenodo. https://doi.org/10.5281/zenodo.22704550
 
 ## License
 
