@@ -1,6 +1,6 @@
 cff-version: 1.2.0
 message: "If you use (E)Gasboard, please cite this software."
-title: "(E)Gasboard"
+title: "(E)Gasboard - Open research software for gas calculations"
 type: software
 
 authors:
