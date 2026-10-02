@@ -371,6 +371,87 @@ function compareNumericKeys(actual, expected, keys, tolerance = 1e-10, prefix = 
   );
 }
 
+
+// A below-zero calibrated concentration is physically clipped to zero so
+// sampling correction can continue, while the raw fitted value remains auditable.
+{
+  const calibrationRows = [
+    {gas_id: "CH4", calibration_id: "CH4_0", gas_percent: 0, peak_area: 100},
+    {gas_id: "CH4", calibration_id: "CH4_10", gas_percent: 10, peak_area: 1100}
+  ];
+
+  const measurementRows = [
+    {
+      experiment_id: "Sampling_below_zero",
+      sample_id: "Bottle_01",
+      time_h: 0,
+      pressure_bar_abs: 1.0,
+      temperature_C: 25,
+      bottle_volume_mL: 120,
+      liquid_volume_mL: 50,
+      liquid_sample_mL: 1.0,
+      headspace_sample_mL: 0.1,
+      CH4: 50
+    },
+    {
+      experiment_id: "Sampling_below_zero",
+      sample_id: "Bottle_01",
+      time_h: 1,
+      pressure_bar_abs: 1.0,
+      temperature_C: 25,
+      bottle_volume_mL: 120,
+      liquid_volume_mL: 49,
+      liquid_sample_mL: 0,
+      headspace_sample_mL: 0,
+      CH4: 200
+    }
+  ];
+
+  const fit = fitCalibrationsFromTable(calibrationRows);
+  let results = processMeasurementTable(measurementRows, fit.calibrations, 1.0);
+  results = applySamplingCorrections(results, measurementRows);
+
+  const first = results[0];
+  const second = results[1];
+
+  close(first.gas_percent, 0, 1e-12, "below-zero clipped gas percent");
+  close(first.calibration_gas_percent_raw, -0.5, 1e-12, "below-zero raw gas percent");
+  if (!String(first.QC_status).includes("BELOW_ZERO_CLIPPED")) {
+    throw new Error("Below-zero calibration result should be flagged as clipped to zero.");
+  }
+  if (String(first.QC_status).includes("ERROR")) {
+    throw new Error("Below-zero calibration result should not cause a processing error.");
+  }
+  if (String(second.QC_status).includes("SAMPLING_CORRECTION_INCOMPLETE")) {
+    throw new Error("Sampling correction should continue after a below-zero value is clipped to zero.");
+  }
+  close(first.sampled_total_molecular_mmol, 0, 1e-12, "below-zero sampled amount");
+  if (!(Number(second.sampling_corrected_total_mmol) >= Number(second.total_bottle_mmol))) {
+    throw new Error("Later sampling-corrected total should remain available.");
+  }
+}
+
+// Genuine invalid gas percentages still make the sampling correction incomplete.
+{
+  const calibrationRows = [
+    {gas_id: "CH4", calibration_id: "CH4_0", gas_percent: 0, peak_area: 100},
+    {gas_id: "CH4", calibration_id: "CH4_10", gas_percent: 10, peak_area: 1100}
+  ];
+  const measurementRows = [
+    {experiment_id:"Sampling_failure",sample_id:"Bottle_01",time_h:0,pressure_bar_abs:1.0,temperature_C:25,bottle_volume_mL:120,liquid_volume_mL:50,liquid_sample_mL:1.0,headspace_sample_mL:0.1,CH4:12000},
+    {experiment_id:"Sampling_failure",sample_id:"Bottle_01",time_h:1,pressure_bar_abs:1.0,temperature_C:25,bottle_volume_mL:120,liquid_volume_mL:49,liquid_sample_mL:0,headspace_sample_mL:0,CH4:200}
+  ];
+  const fit = fitCalibrationsFromTable(calibrationRows);
+  let results = processMeasurementTable(measurementRows, fit.calibrations, 1.0);
+  results = applySamplingCorrections(results, measurementRows);
+  if (!String(results[0].QC_status).includes("SAMPLING_CORRECTION_INCOMPLETE")) {
+    throw new Error("A genuinely invalid sampled row should still mark sampling correction incomplete.");
+  }
+  if (!String(results[1].QC_status).includes("SAMPLING_CORRECTION_INCOMPLETE")) {
+    throw new Error("Later rows should inherit a genuine sampling-correction failure.");
+  }
+}
+
 console.log("Static JavaScript scientific parity tests passed.");
 // kLa screening table and mass-transfer equation.
 {

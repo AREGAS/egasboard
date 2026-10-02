@@ -1,3 +1,7 @@
+### Sampling correction below zero
+- Calibration-derived gas concentrations below 0% are now clipped to 0% for physical bottle calculations and longitudinal sampling correction, while the raw fitted value is retained in Extended_data and flagged as `BELOW_ZERO_CLIPPED`.
+- Genuine invalid measurements still stop the cumulative sampling correction and identify the originating measurement row.
+
 ### UI refinement
 - Stacked the rate/mass-transfer controls vertically to prevent crowded labels and inputs.
 - Made the How it works jump buttons explicitly navigational and collapsed the large parameter/unit reference table.
@@ -126,13 +130,3 @@ Streamlit v0.3 was used for workflow development and colleague testing.
 - Explore & predict now counts once as a tool use on the first successful live calculation instead of counting every tweak.
 
 - Rate & mass transfer now includes vessel volume so closed-bottle headspace volume, gas inventory and a simple inventory/rate depletion time can be reported.
-
-## v0.2 release preparation
-
-- Added rate fitting and gas-transfer screening for batch time series and manual rates.
-- Added vessel/headspace handling, gas-inventory estimates and improved sampling-loss correction.
-- Expanded gas-dosing options and unit handling.
-- Added cleaner CSV/TSV export packages alongside Excel output.
-- Reworked interactive plots using D3.js for clearer rate, batch and calibration figures.
-- Improved light/dark styling, layout, navigation and documentation throughout the interface.
-- Updated assumptions, calculation notes and reference material for the expanded analysis workflow.

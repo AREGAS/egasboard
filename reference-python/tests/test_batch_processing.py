@@ -466,3 +466,80 @@ def test_co2_sampling_correction_keeps_molecular_and_dic_balances_separate():
     assert first["sampled_DIC_mmol"] > first["sampled_liquid_molecular_mmol"]
     assert second["estimated_sampling_corrected_total_inorganic_C_mmol"] > 0
 
+
+
+def test_below_zero_calibration_is_clipped_and_sampling_correction_continues():
+    calibration_table = pd.DataFrame(
+        {
+            "gas_id": ["CH4", "CH4"],
+            "calibration_id": ["CH4_0", "CH4_10"],
+            "gas_percent": [0.0, 10.0],
+            "peak_area": [100.0, 1100.0],
+        }
+    )
+
+    measurement_table = pd.DataFrame(
+        {
+            "experiment_id": ["Sampling_below_zero", "Sampling_below_zero"],
+            "sample_id": ["Bottle_01", "Bottle_01"],
+            "time_h": [0.0, 1.0],
+            "pressure_bar_abs": [1.0, 1.0],
+            "temperature_C": [25.0, 25.0],
+            "bottle_volume_mL": [120.0, 120.0],
+            "liquid_volume_mL": [50.0, 49.0],
+            "liquid_sample_mL": [1.0, 0.0],
+            "headspace_sample_mL": [0.1, 0.0],
+            "CH4": [50.0, 200.0],
+        }
+    )
+
+    calibrations, _ = fit_calibrations_from_table(calibration_table)
+    results = process_measurement_table(measurement_table, calibrations)
+    corrected = apply_sampling_corrections(results, measurement_table)
+
+    first = corrected.iloc[0]
+    second = corrected.iloc[1]
+
+    assert abs(float(first["gas_percent"])) < 1e-12
+    assert abs(float(first["calibration_gas_percent_raw"]) + 0.5) < 1e-12
+    assert "BELOW_ZERO_CLIPPED" in first["QC_status"]
+    assert "ERROR" not in first["QC_status"]
+    assert "SAMPLING_CORRECTION_INCOMPLETE" not in second["QC_status"]
+    assert abs(float(first["sampled_total_molecular_mmol"])) < 1e-12
+    assert second["sampling_corrected_total_mmol"] is not None
+
+
+def test_genuine_invalid_sampled_row_still_marks_sampling_correction_incomplete():
+    calibration_table = pd.DataFrame(
+        {
+            "gas_id": ["CH4", "CH4"],
+            "calibration_id": ["CH4_0", "CH4_10"],
+            "gas_percent": [0.0, 10.0],
+            "peak_area": [100.0, 1100.0],
+        }
+    )
+
+    measurement_table = pd.DataFrame(
+        {
+            "experiment_id": ["Sampling_failure", "Sampling_failure"],
+            "sample_id": ["Bottle_01", "Bottle_01"],
+            "time_h": [0.0, 1.0],
+            "pressure_bar_abs": [1.0, 1.0],
+            "temperature_C": [25.0, 25.0],
+            "bottle_volume_mL": [120.0, 120.0],
+            "liquid_volume_mL": [50.0, 49.0],
+            "liquid_sample_mL": [1.0, 0.0],
+            "headspace_sample_mL": [0.1, 0.0],
+            "CH4": [12000.0, 200.0],
+        }
+    )
+
+    calibrations, _ = fit_calibrations_from_table(calibration_table)
+    results = process_measurement_table(measurement_table, calibrations)
+    corrected = apply_sampling_corrections(results, measurement_table)
+
+    first = corrected.iloc[0]
+    second = corrected.iloc[1]
+    assert "SAMPLING_CORRECTION_INCOMPLETE" in first["QC_status"]
+    assert "SAMPLING_CORRECTION_INCOMPLETE" in second["QC_status"]
+

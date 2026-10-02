@@ -427,21 +427,29 @@ def process_measurement_table(
             # ----------------------------------------------------------
             # STEP A - Convert peak area to gas percentage
             # ----------------------------------------------------------
-            gas_percent = calculate_gas_percent(
+            raw_gas_percent = calculate_gas_percent(
                 row["peak_area"],
                 calibration,
             )
 
             extrapolated = calibration_is_extrapolated(
-                gas_percent,
+                raw_gas_percent,
                 calibration,
             )
+
+            # A linear calibration with a positive intercept can return a
+            # small negative concentration for a signal below the blank/zero
+            # intercept. Negative gas concentrations are not physical, so use
+            # 0% for bottle calculations while retaining the raw fitted value
+            # for audit and QC. This permits sampling correction to continue.
+            clipped_to_zero = raw_gas_percent < 0
+            gas_percent = 0.0 if clipped_to_zero else raw_gas_percent
 
             if extrapolated:
                 qc_flags.append("CALIBRATION_EXTRAPOLATION")
 
-            if gas_percent < 0:
-                qc_flags.append("NEGATIVE_GAS_PERCENT")
+            if clipped_to_zero:
+                qc_flags.append("BELOW_ZERO_CLIPPED")
 
             # ----------------------------------------------------------
             # STEP B - Read salinity and pH
@@ -516,6 +524,7 @@ def process_measurement_table(
             # STEP E - Store the main physical results
             # ----------------------------------------------------------
             output_row["gas_percent"] = gas_percent
+            output_row["calibration_gas_percent_raw"] = raw_gas_percent
             output_row["calibration_extrapolated"] = extrapolated
             output_row["partial_pressure_Pa"] = result["partial_pressure_Pa"]
             output_row["henry_Hcp_mol_m3_Pa"] = result[
@@ -602,6 +611,11 @@ def process_measurement_table(
                     "Calculated gas % is outside the calibration range."
                 )
 
+            if clipped_to_zero:
+                warning_messages.append(
+                    f"Calibration returned {raw_gas_percent:.6g}%; this is below 0% and was set to 0% for physical calculations and sampling correction."
+                )
+
             output_row["warnings"] = " | ".join(warning_messages)
             output_row["processing_error"] = ""
 
@@ -611,6 +625,7 @@ def process_measurement_table(
             output_row["estimated_DIC_mmol"] = None
             output_row["estimated_total_sulfide_mmol"] = None
             output_row["gas_percent"] = None
+            output_row["calibration_gas_percent_raw"] = None
             output_row["calibration_extrapolated"] = None
             output_row["partial_pressure_Pa"] = None
             output_row["henry_Hcp_mol_m3_Pa"] = None
@@ -738,6 +753,24 @@ def _add_qc_flag(row, flag):
     return " | ".join(existing) if existing else "OK"
 
 
+def _add_warning(row, message):
+    """Append one human-readable warning while keeping the existing order."""
+
+    current = str(row.get("warnings", "")).strip()
+    existing = []
+
+    if current not in ["", "nan"]:
+        for value in current.split("|"):
+            value = value.strip()
+            if value and value not in existing:
+                existing.append(value)
+
+    if message and message not in existing:
+        existing.append(message)
+
+    return " | ".join(existing)
+
+
 def _normalized_experiment_id(value):
     if value_is_missing(value) or str(value).strip() == "":
         return "Experiment 1"
@@ -831,6 +864,7 @@ def apply_sampling_corrections(results_table, measurement_table):
         for gas_id in gas_ids:
             cumulative_molecular = 0.0
             molecular_complete = True
+            molecular_failure_note = ""
             cumulative_reactive = 0.0
             reactive_complete = True
 
@@ -852,6 +886,11 @@ def apply_sampling_corrections(results_table, measurement_table):
                 if len(matching_indices) == 0:
                     if sampling_occurs:
                         molecular_complete = False
+                        molecular_failure_note = (
+                            f"Sampling correction incomplete for {gas_id}: gas amount could not be "
+                            f"quantified at measurement row {excel_row} because no valid gas result "
+                            "was available. Subsequent cumulative sampling corrections cannot be calculated."
+                        )
                         if gas_id in ["CO2", "H2S"]:
                             reactive_complete = False
                     continue
@@ -859,9 +898,21 @@ def apply_sampling_corrections(results_table, measurement_table):
                 row_index = matching_indices[0]
                 row = corrected.loc[row_index].copy()
 
-                if str(row.get("processing_error", "")).strip() != "":
+                processing_error = str(row.get("processing_error", "")).strip()
+                if processing_error != "":
                     if sampling_occurs:
                         molecular_complete = False
+                        molecular_failure_note = (
+                            f"Sampling correction incomplete for {gas_id}: gas amount could not be "
+                            f"quantified at measurement row {excel_row} because {processing_error}. "
+                            "Subsequent cumulative sampling corrections cannot be calculated."
+                        )
+                        corrected.at[row_index, "QC_status"] = _add_qc_flag(
+                            row, "SAMPLING_CORRECTION_INCOMPLETE"
+                        )
+                        corrected.at[row_index, "warnings"] = _add_warning(
+                            row, molecular_failure_note
+                        )
                         if gas_id in ["CO2", "H2S"]:
                             reactive_complete = False
                     continue
@@ -878,6 +929,11 @@ def apply_sampling_corrections(results_table, measurement_table):
                 if not molecular_complete:
                     corrected.at[row_index, "QC_status"] = _add_qc_flag(
                         row, "SAMPLING_CORRECTION_INCOMPLETE"
+                    )
+                    corrected.at[row_index, "warnings"] = _add_warning(
+                        row,
+                        molecular_failure_note
+                        or f"Sampling correction incomplete for {gas_id}: a previous sampling time point could not be quantified.",
                     )
 
                 liquid_volume_ml = float(row["liquid_volume_mL"])
@@ -1051,6 +1107,7 @@ def make_wide_results_table(results_table):
     gas_metric_columns = [
         "peak_area",
         "gas_percent",
+        "calibration_gas_percent_raw",
         "total_bottle_mmol",
         "headspace_mmol",
         "molecular_dissolved_mmol",

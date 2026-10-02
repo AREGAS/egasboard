@@ -319,11 +319,20 @@ export function processMeasurementTable(measurementRows, calibrations, compressi
         throw new Error(`No calibration curve was supplied for ${gasId}.`);
       }
 
-      const gasPercent = calculateGasPercent(row.peak_area, calibration);
-      const extrapolated = calibrationIsExtrapolated(gasPercent, calibration);
+      const rawGasPercent = calculateGasPercent(row.peak_area, calibration);
+      const extrapolated = calibrationIsExtrapolated(rawGasPercent, calibration);
+
+      // A linear calibration with a positive intercept can return a small
+      // negative concentration for a signal below the zero-calibration
+      // intercept. Negative gas concentrations are not physical, so batch
+      // calculations use 0% while retaining the raw fitted value for audit.
+      // This also allows longitudinal sampling correction to continue with
+      // zero gas removed at that sampling point.
+      const gasPercent = rawGasPercent < 0 ? 0.0 : rawGasPercent;
+      const clippedToZero = rawGasPercent < 0;
 
       if (extrapolated) qcFlags.push("CALIBRATION_EXTRAPOLATION");
-      if (gasPercent < 0) qcFlags.push("NEGATIVE_GAS_PERCENT");
+      if (clippedToZero) qcFlags.push("BELOW_ZERO_CLIPPED");
 
       const salinity = valueIsMissing(row.salinity_g_L_NaCl)
         ? 0.0
@@ -383,6 +392,7 @@ export function processMeasurementTable(measurementRows, calibrations, compressi
 
       Object.assign(output, {
         gas_percent: gasPercent,
+        calibration_gas_percent_raw: rawGasPercent,
         calibration_extrapolated: extrapolated,
         partial_pressure_Pa: result.partial_pressure_Pa,
         henry_Hcp_mol_m3_Pa: result.henry_temperature_corrected,
@@ -432,6 +442,11 @@ export function processMeasurementTable(measurementRows, calibrations, compressi
 
       const warningMessages = [...result.warnings];
       if (extrapolated) warningMessages.push("Calculated gas % is outside the calibration range.");
+      if (clippedToZero) {
+        warningMessages.push(
+          `Calibration returned ${rawGasPercent.toPrecision(6)}%; this is below 0% and was set to 0% for physical calculations and sampling correction.`
+        );
+      }
       output.warnings = warningMessages.join(" | ");
       output.processing_error = "";
     } catch (error) {
@@ -439,7 +454,7 @@ export function processMeasurementTable(measurementRows, calibrations, compressi
 
       for (const key of [
         "estimated_DIC_mmol", "estimated_total_sulfide_mmol", "gas_percent",
-        "calibration_extrapolated", "partial_pressure_Pa", "henry_Hcp_mol_m3_Pa",
+        "calibration_gas_percent_raw", "calibration_extrapolated", "partial_pressure_Pa", "henry_Hcp_mol_m3_Pa",
         "henry_pure_water_Hcp_mol_m3_Pa", "salinity_NaCl_mol_L", "sechenov_K",
         "salting_out_factor", "henry_reference_Hcp_mol_m3_Pa", "henry_B_K",
         "henry_source", "CO2_star_percent", "HCO3_percent", "CO3_percent",
@@ -472,6 +487,18 @@ function addQcFlag(row, flag) {
 
   if (!existing.includes(flag)) existing.push(flag);
   row.QC_status = existing.length ? existing.join(" | ") : "OK";
+}
+
+function addWarning(row, message) {
+  if (!row || !message) return;
+
+  const existing = String(row.warnings || "")
+    .split("|")
+    .map(value => value.trim())
+    .filter(Boolean);
+
+  if (!existing.includes(message)) existing.push(message);
+  row.warnings = existing.join(" | ");
 }
 
 function normalizedExperimentId(value) {
@@ -543,6 +570,7 @@ export function applySamplingCorrections(results, measurementRows) {
     for (const gasId of gases) {
       let cumulativeMolecularSampled = 0.0;
       let molecularCorrectionComplete = true;
+      let molecularCorrectionFailureNote = "";
       let cumulativeReactivePoolSampled = 0.0;
       let reactivePoolCorrectionComplete = true;
 
@@ -562,6 +590,21 @@ export function applySamplingCorrections(results, measurementRows) {
         if (!row || row.processing_error) {
           if (samplingOccurs) {
             molecularCorrectionComplete = false;
+
+            const reason = row && row.processing_error
+              ? ` because ${row.processing_error}`
+              : " because no valid gas result was available";
+
+            molecularCorrectionFailureNote =
+              `Sampling correction incomplete for ${gasId}: gas amount could not be quantified ` +
+              `at measurement row ${sourceRow.excel_row}${reason}. ` +
+              `Subsequent cumulative sampling corrections cannot be calculated.`;
+
+            if (row) {
+              addQcFlag(row, "SAMPLING_CORRECTION_INCOMPLETE");
+              addWarning(row, molecularCorrectionFailureNote);
+            }
+
             if (gasId === "CO2" || gasId === "H2S") {
               reactivePoolCorrectionComplete = false;
             }
@@ -581,6 +624,11 @@ export function applySamplingCorrections(results, measurementRows) {
 
         if (!molecularCorrectionComplete) {
           addQcFlag(row, "SAMPLING_CORRECTION_INCOMPLETE");
+          addWarning(
+            row,
+            molecularCorrectionFailureNote ||
+              `Sampling correction incomplete for ${gasId}: a previous sampling time point could not be quantified.`
+          );
         }
 
         const liquidVolumeMl = Number(row.liquid_volume_mL);
@@ -728,7 +776,7 @@ export function makeWideResultsTable(results) {
 
   const gasOrder = uniqueInOrder(results.map(row => String(row.gas_id).trim().toUpperCase()));
   const metrics = [
-    "peak_area", "gas_percent", "total_bottle_mmol", "headspace_mmol",
+    "peak_area", "gas_percent", "calibration_gas_percent_raw", "total_bottle_mmol", "headspace_mmol",
     "molecular_dissolved_mmol", "reactive_dissolved_mmol", "partial_pressure_Pa",
     "estimated_DIC_mmol", "estimated_total_sulfide_mmol",
     "sampled_headspace_mmol", "sampled_liquid_molecular_mmol",
