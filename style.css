@@ -1040,6 +1040,12 @@ select {
   margin: 0;
 }
 
+.dose-note {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: .88rem;
+}
+
 .dose-grid-5 {
   grid-template-columns: repeat(5, minmax(130px, 1fr));
 }

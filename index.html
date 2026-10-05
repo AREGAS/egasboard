@@ -344,18 +344,21 @@
             <label>
               Unit
               <select id="dose-target-unit">
-                <option value="umol_L">µM</option>
+                <option value="umol_L">µmol/L (µM)</option>
               </select>
             </label>
 
             <label id="dose-target-basis-label">
               Target refers to
               <select id="dose-target-basis">
-                <option value="molecular">Molecular dissolved gas</option>
+                <option value="molecular">Molecular dissolved gas concentration</option>
                 <option value="total_pool">Estimated total pool</option>
               </select>
             </label>
           </div>
+          <p id="dose-target-note" class="dose-note">
+            Concentration is entered per litre; the dissolved amount is automatically scaled to the entered liquid volume.
+          </p>
         </div>
 
         <div class="dose-section">
